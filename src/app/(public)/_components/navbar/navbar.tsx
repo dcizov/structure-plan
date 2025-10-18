@@ -1,14 +1,12 @@
 import Link from "next/link";
 import { GalleryVerticalEnd } from "lucide-react";
 
-import type { Session } from "@/server/auth";
-import { Button } from "@/components/ui/button";
-import { NavMenu } from "@/components/navbar/nav-menu";
-import { NavigationSheet } from "@/components/navbar/navigation-sheet";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { UserNav } from "@/components/user-nav";
+import { NavMenu } from "@/app/(public)/_components/navbar/nav-menu";
+import { NavbarActions } from "@/app/(public)/_components/navbar/navbar-actions";
+import { NavigationSheet } from "@/app/(public)/_components/navbar/navigation-sheet";
 
-export default function Navbar({ session }: { session: Session | null }) {
+export default function Navbar() {
   return (
     <nav className="bg-background h-16 border-b">
       <div className="mx-auto flex h-full max-w-(--breakpoint-xl) items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -31,22 +29,8 @@ export default function Navbar({ session }: { session: Session | null }) {
           {/* Theme Toggle */}
           <ThemeToggle />
 
-          {!session ? (
-            <>
-              <Button
-                asChild
-                variant="outline"
-                className="hidden sm:inline-flex"
-              >
-                <Link href="/login">Sign In</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/register">Sign Up</Link>
-              </Button>
-            </>
-          ) : (
-            <UserNav user={session.user} />
-          )}
+          {/* Auth Actions - Client component that fetches its own session */}
+          <NavbarActions />
 
           {/* Mobile Menu */}
           <div className="md:hidden">
