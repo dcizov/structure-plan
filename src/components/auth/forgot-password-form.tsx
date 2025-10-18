@@ -1,18 +1,14 @@
 "use client";
 
 import * as React from "react";
+import { useActionState } from "react";
 import Link from "next/link";
 import { forgotPasswordSchema, type ForgotPasswordInput } from "@/schemas/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import type {
-  ControllerRenderProps,
-  SubmitHandler,
-  UseFormReturn,
-} from "react-hook-form";
+import { Loader2 } from "lucide-react";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
-import { authClient } from "@/server/auth/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,66 +18,70 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Field, FieldDescription, FieldGroup } from "@/components/ui/field";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import { Input } from "@/components/ui/input";
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof (error as Record<string, unknown>).message === "string"
-  ) {
-    return (error as { message: string }).message;
-  }
-  return "An unexpected error occurred";
-}
+import { forgotPasswordAction, type ActionState } from "@/app/actions/auth";
 
 export function ForgotPasswordForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
-  const [success, setSuccess] = React.useState(false);
+  const [actionState, formAction, isPending] = useActionState<
+    ActionState,
+    FormData
+  >(forgotPasswordAction, null);
 
-  const form: UseFormReturn<ForgotPasswordInput> = useForm<ForgotPasswordInput>(
-    {
-      resolver: zodResolver(forgotPasswordSchema),
-      defaultValues: { email: "" },
-      mode: "onSubmit",
+  const form = useForm<ForgotPasswordInput>({
+    resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: {
+      email: "",
     },
-  );
+    mode: "onTouched",
+    reValidateMode: "onChange",
+  });
 
-  const isSubmitting = form.formState.isSubmitting;
+  const isSubmitting = form.formState.isSubmitting || isPending;
 
-  const onSubmit: SubmitHandler<ForgotPasswordInput> = async (values) => {
-    try {
-      const { error } = await authClient.forgetPassword({
-        email: values.email,
-        redirectTo: "/reset-password",
+  // Sync server errors
+  React.useEffect(() => {
+    if (actionState?.errors) {
+      Object.entries(actionState.errors).forEach(([field, messages]) => {
+        if (messages && messages.length > 0) {
+          form.setError(field as keyof ForgotPasswordInput, {
+            type: "server",
+            message: messages[0],
+          });
+        }
       });
-
-      if (error) {
-        toast.error(error.message ?? "Failed to send reset email");
-        return;
-      }
-
-      toast.success("Password reset link sent! Check your email.");
-      setSuccess(true);
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err));
     }
+  }, [actionState?.errors, actionState?.timestamp, form]);
+
+  // Handle success
+  React.useEffect(() => {
+    if (actionState?.success) {
+      toast.success(actionState.message ?? "Reset link sent!");
+    } else if (actionState?.message && !actionState.success) {
+      toast.error(actionState.message);
+    }
+  }, [actionState?.success, actionState?.message, actionState?.timestamp]);
+
+  const onSubmit = async (data: ForgotPasswordInput) => {
+    const formData = new FormData();
+    formData.append("email", data.email);
+
+    React.startTransition(() => {
+      formAction(formData);
+    });
   };
 
-  if (success) {
+  if (actionState?.success) {
     return (
       <div className={cn("flex flex-col gap-6", className)} {...props}>
         <Card>
@@ -101,6 +101,9 @@ export function ForgotPasswordForm({
     );
   }
 
+  const hasErrors = Object.keys(form.formState.errors).length > 0;
+  const submitCount = form.formState.submitCount;
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
@@ -111,60 +114,99 @@ export function ForgotPasswordForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Form {...form}>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void form.handleSubmit(onSubmit)(e);
-              }}
-              noValidate
-            >
-              <FieldGroup>
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({
-                    field,
-                  }: {
-                    field: ControllerRenderProps<ForgotPasswordInput, "email">;
-                  }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="email"
-                          placeholder="m@example.com"
-                          autoComplete="email"
-                          disabled={isSubmitting}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            noValidate
+            aria-label="Forgot password form"
+          >
+            {submitCount > 0 && hasErrors && (
+              <FormErrorSummary
+                errors={form.formState.errors}
+                title="Please correct the following errors:"
+              />
+            )}
 
-                <Field>
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full"
+            <FieldGroup>
+              <Controller
+                name="email"
+                control={form.control}
+                render={({ field, fieldState }) => {
+                  const errorId = `${field.name}-error`;
+
+                  return (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor={field.name}>
+                        Email
+                        <span
+                          className="text-destructive"
+                          aria-label="required"
+                        >
+                          {" "}
+                          *
+                        </span>
+                      </FieldLabel>
+                      <Input
+                        {...field}
+                        id={field.name}
+                        type="email"
+                        placeholder="name@example.com"
+                        autoComplete="email"
+                        aria-invalid={fieldState.invalid}
+                        aria-required="true"
+                        aria-describedby={
+                          fieldState.invalid ? errorId : undefined
+                        }
+                        disabled={isSubmitting}
+                        className={cn(
+                          fieldState.invalid &&
+                            "border-destructive focus-visible:ring-destructive",
+                        )}
+                      />
+                      {fieldState.invalid && (
+                        <FieldError
+                          id={errorId}
+                          errors={[fieldState.error]}
+                          role="alert"
+                          aria-live="assertive"
+                        />
+                      )}
+                    </Field>
+                  );
+                }}
+              />
+
+              <Field>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full"
+                  aria-busy={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                      Sending...
+                    </>
+                  ) : (
+                    "Send reset link"
+                  )}
+                </Button>
+                <FieldDescription className="text-center">
+                  Remember your password?{" "}
+                  <Link
+                    href="/login"
+                    className="underline underline-offset-4 hover:no-underline"
+                    tabIndex={isSubmitting ? -1 : 0}
                   >
-                    {isSubmitting ? "Sending..." : "Send reset link"}
-                  </Button>
-                  <FieldDescription className="text-center">
-                    Remember your password?{" "}
-                    <Link
-                      href="/login"
-                      className="underline underline-offset-4"
-                    >
-                      Sign in
-                    </Link>
-                  </FieldDescription>
-                </Field>
-              </FieldGroup>
-            </form>
-          </Form>
+                    Sign in
+                  </Link>
+                </FieldDescription>
+              </Field>
+            </FieldGroup>
+          </form>
         </CardContent>
       </Card>
     </div>

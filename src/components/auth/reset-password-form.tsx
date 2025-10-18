@@ -1,19 +1,15 @@
 "use client";
 
 import * as React from "react";
+import { useActionState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resetPasswordSchema, type ResetPasswordInput } from "@/schemas/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import type {
-  ControllerRenderProps,
-  SubmitHandler,
-  UseFormReturn,
-} from "react-hook-form";
+import { Loader2 } from "lucide-react";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
-import { authClient } from "@/server/auth/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,29 +19,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Field, FieldDescription, FieldGroup } from "@/components/ui/field";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof (error as Record<string, unknown>).message === "string"
-  ) {
-    return (error as { message: string }).message;
-  }
-  return "An unexpected error occurred";
-}
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { FormErrorSummary } from "@/components/ui/form-error-summary";
+import { PasswordInput } from "@/components/ui/password-input";
+import { PasswordStrength } from "@/components/ui/password-strength";
+import { resetPasswordAction, type ActionState } from "@/app/actions/auth";
 
 export function ResetPasswordForm({
   className,
@@ -53,16 +37,71 @@ export function ResetPasswordForm({
 }: React.ComponentProps<"div">) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token") ?? undefined;
-  const [success, setSuccess] = React.useState(false);
+  const token = searchParams.get("token");
 
-  const form: UseFormReturn<ResetPasswordInput> = useForm<ResetPasswordInput>({
+  const [actionState, formAction, isPending] = useActionState<
+    ActionState,
+    FormData
+  >(resetPasswordAction, null);
+
+  const form = useForm<ResetPasswordInput>({
     resolver: zodResolver(resetPasswordSchema),
-    defaultValues: { password: "", confirmPassword: "" },
-    mode: "onSubmit",
+    defaultValues: {
+      password: "",
+      confirmPassword: "",
+    },
+    mode: "onTouched",
+    reValidateMode: "onChange",
   });
 
-  const isSubmitting = form.formState.isSubmitting;
+  const password = form.watch("password");
+  const isSubmitting = form.formState.isSubmitting || isPending;
+
+  // Sync server errors
+  React.useEffect(() => {
+    if (actionState?.errors) {
+      Object.entries(actionState.errors).forEach(([field, messages]) => {
+        if (messages && messages.length > 0) {
+          form.setError(field as keyof ResetPasswordInput, {
+            type: "server",
+            message: messages[0],
+          });
+        }
+      });
+    }
+  }, [actionState?.errors, actionState?.timestamp, form]);
+
+  // Handle success
+  React.useEffect(() => {
+    if (actionState?.success) {
+      toast.success(actionState.message ?? "Password reset successful!");
+      setTimeout(() => {
+        router.push("/login");
+      }, 2000);
+    } else if (actionState?.message && !actionState.success) {
+      toast.error(actionState.message);
+    }
+  }, [
+    actionState?.success,
+    actionState?.message,
+    actionState?.timestamp,
+    router,
+  ]);
+
+  // Focus management
+  React.useEffect(() => {
+    const errors = form.formState.errors;
+    if (Object.keys(errors).length > 0) {
+      const firstErrorField = Object.keys(
+        errors,
+      )[0] as keyof ResetPasswordInput;
+      const element = document.getElementById(firstErrorField);
+      if (element) {
+        element.focus();
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }, [form.formState.errors, form.formState.submitCount]);
 
   if (!token) {
     return (
@@ -84,29 +123,7 @@ export function ResetPasswordForm({
     );
   }
 
-  const onSubmit: SubmitHandler<ResetPasswordInput> = async (values) => {
-    try {
-      const { error } = await authClient.resetPassword({
-        newPassword: values.password,
-        token,
-      });
-
-      if (error) {
-        toast.error(error.message ?? "Failed to reset password");
-        return;
-      }
-
-      toast.success("Password reset successful! Redirecting to login...");
-      setSuccess(true);
-      setTimeout(() => {
-        router.push("/login");
-      }, 2000);
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err));
-    }
-  };
-
-  if (success) {
+  if (actionState?.success) {
     return (
       <div className={cn("flex flex-col gap-6", className)} {...props}>
         <Card>
@@ -121,6 +138,20 @@ export function ResetPasswordForm({
     );
   }
 
+  const onSubmit = async (data: ResetPasswordInput) => {
+    const formData = new FormData();
+    formData.append("password", data.password);
+    formData.append("confirmPassword", data.confirmPassword);
+    formData.append("token", token);
+
+    React.startTransition(() => {
+      formAction(formData);
+    });
+  };
+
+  const hasErrors = Object.keys(form.formState.errors).length > 0;
+  const submitCount = form.formState.submitCount;
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
@@ -129,92 +160,145 @@ export function ResetPasswordForm({
           <CardDescription>Enter your new password below</CardDescription>
         </CardHeader>
         <CardContent>
-          <Form {...form}>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void form.handleSubmit(onSubmit)(e);
-              }}
-              noValidate
-            >
-              <FieldGroup>
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({
-                    field,
-                  }: {
-                    field: ControllerRenderProps<
-                      ResetPasswordInput,
-                      "password"
-                    >;
-                  }) => (
-                    <FormItem>
-                      <FormLabel>New Password</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          autoComplete="new-password"
-                          minLength={8}
-                          disabled={isSubmitting}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                      <FieldDescription>
-                        Must be at least 8 characters
-                      </FieldDescription>
-                    </FormItem>
-                  )}
-                />
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            noValidate
+            aria-label="Reset password form"
+          >
+            {submitCount > 0 && hasErrors && (
+              <FormErrorSummary
+                errors={form.formState.errors}
+                title="Please correct the following errors:"
+              />
+            )}
 
-                <FormField
-                  control={form.control}
-                  name="confirmPassword"
-                  render={({
-                    field,
-                  }: {
-                    field: ControllerRenderProps<
-                      ResetPasswordInput,
-                      "confirmPassword"
-                    >;
-                  }) => (
-                    <FormItem>
-                      <FormLabel>Confirm Password</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          autoComplete="new-password"
-                          minLength={8}
-                          disabled={isSubmitting}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <FieldGroup>
+              <Controller
+                name="password"
+                control={form.control}
+                render={({ field, fieldState }) => {
+                  const errorId = `${field.name}-error`;
 
-                <Field>
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full"
+                  return (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor={field.name}>
+                        New Password
+                        <span
+                          className="text-destructive"
+                          aria-label="required"
+                        >
+                          {" "}
+                          *
+                        </span>
+                      </FieldLabel>
+                      <PasswordInput
+                        {...field}
+                        id={field.name}
+                        autoComplete="new-password"
+                        aria-invalid={fieldState.invalid}
+                        aria-required="true"
+                        aria-describedby={
+                          fieldState.invalid ? errorId : undefined
+                        }
+                        disabled={isSubmitting}
+                        className={cn(
+                          fieldState.invalid &&
+                            "border-destructive focus-visible:ring-destructive",
+                        )}
+                      />
+                      {!fieldState.invalid && password && (
+                        <PasswordStrength password={password} />
+                      )}
+                      {fieldState.invalid && (
+                        <FieldError
+                          id={errorId}
+                          errors={[fieldState.error]}
+                          role="alert"
+                          aria-live="assertive"
+                        />
+                      )}
+                    </Field>
+                  );
+                }}
+              />
+
+              <Controller
+                name="confirmPassword"
+                control={form.control}
+                render={({ field, fieldState }) => {
+                  const errorId = `${field.name}-error`;
+
+                  return (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor={field.name}>
+                        Confirm Password
+                        <span
+                          className="text-destructive"
+                          aria-label="required"
+                        >
+                          {" "}
+                          *
+                        </span>
+                      </FieldLabel>
+                      <PasswordInput
+                        {...field}
+                        id={field.name}
+                        autoComplete="new-password"
+                        aria-invalid={fieldState.invalid}
+                        aria-required="true"
+                        aria-describedby={
+                          fieldState.invalid ? errorId : undefined
+                        }
+                        disabled={isSubmitting}
+                        className={cn(
+                          fieldState.invalid &&
+                            "border-destructive focus-visible:ring-destructive",
+                        )}
+                      />
+                      {fieldState.invalid && (
+                        <FieldError
+                          id={errorId}
+                          errors={[fieldState.error]}
+                          role="alert"
+                          aria-live="assertive"
+                        />
+                      )}
+                    </Field>
+                  );
+                }}
+              />
+
+              <Field>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full"
+                  aria-busy={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                      Resetting...
+                    </>
+                  ) : (
+                    "Reset password"
+                  )}
+                </Button>
+                <FieldDescription className="text-center">
+                  <Link
+                    href="/login"
+                    className="underline underline-offset-4 hover:no-underline"
+                    tabIndex={isSubmitting ? -1 : 0}
                   >
-                    {isSubmitting ? "Resetting..." : "Reset password"}
-                  </Button>
-                  <FieldDescription className="text-center">
-                    <Link
-                      href="/login"
-                      className="underline underline-offset-4"
-                    >
-                      Back to login
-                    </Link>
-                  </FieldDescription>
-                </Field>
-              </FieldGroup>
-            </form>
-          </Form>
+                    Back to login
+                  </Link>
+                </FieldDescription>
+              </Field>
+            </FieldGroup>
+          </form>
         </CardContent>
       </Card>
     </div>

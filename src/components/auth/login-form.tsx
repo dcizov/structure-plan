@@ -1,17 +1,14 @@
 "use client";
 
 import * as React from "react";
+import { useActionState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSafeCallback } from "@/hooks/use-safe-callbacks";
 import { loginSchema, type LoginInput } from "@/schemas/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import type {
-  ControllerRenderProps,
-  SubmitHandler,
-  UseFormReturn,
-} from "react-hook-form";
+import { Loader2 } from "lucide-react";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import { authClient } from "@/server/auth/client";
@@ -27,32 +24,21 @@ import {
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldGroup,
+  FieldLabel,
   FieldSeparator,
 } from "@/components/ui/field";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
+import { loginAction, type ActionState } from "@/app/actions/auth";
 
 type SocialProvider = "google" | "apple";
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof (error as Record<string, unknown>).message === "string"
-  ) {
-    return (error as { message: string }).message;
-  }
-  return "An unexpected error occurred";
+  return String(error);
 }
 
 export function LoginForm({
@@ -62,185 +48,311 @@ export function LoginForm({
   const router = useRouter();
   const callbackUrl = useSafeCallback();
 
-  const form: UseFormReturn<LoginInput> = useForm<LoginInput>({
+  const [actionState, formAction, isPending] = useActionState<
+    ActionState,
+    FormData
+  >(loginAction, null);
+
+  const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
-    mode: "onSubmit",
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+    mode: "onTouched",
+    reValidateMode: "onChange",
   });
 
-  const isSubmitting = form.formState.isSubmitting;
+  const isSubmitting = form.formState.isSubmitting || isPending;
 
-  const onSubmit: SubmitHandler<LoginInput> = async (values) => {
-    try {
-      const { data, error } = await authClient.signIn.email({
-        email: values.email,
-        password: values.password,
-        callbackURL: callbackUrl,
+  // Sync server errors with react-hook-form
+  React.useEffect(() => {
+    if (actionState?.errors) {
+      Object.entries(actionState.errors).forEach(([field, messages]) => {
+        if (messages && messages.length > 0) {
+          form.setError(field as keyof LoginInput, {
+            type: "server",
+            message: messages[0],
+          });
+        }
       });
-
-      if (error) {
-        toast.error(error.message ?? "Failed to sign in");
-        return;
-      }
-      if (!data) {
-        toast.error("Failed to sign in");
-        return;
-      }
-
-      toast.success("Signed in successfully");
-      router.push(callbackUrl);
-      router.refresh();
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err));
     }
+  }, [actionState?.errors, actionState?.timestamp, form]);
+
+  // Handle successful login
+  React.useEffect(() => {
+    if (actionState?.success) {
+      toast.success(actionState.message ?? "Successfully signed in!");
+
+      setTimeout(() => {
+        router.push(callbackUrl);
+        router.refresh();
+      }, 500);
+    } else if (actionState?.message && !actionState.success) {
+      toast.error(actionState.message);
+    }
+  }, [
+    actionState?.success,
+    actionState?.message,
+    actionState?.timestamp,
+    router,
+    callbackUrl,
+  ]);
+
+  // Focus management for errors
+  React.useEffect(() => {
+    const errors = form.formState.errors;
+    if (Object.keys(errors).length > 0) {
+      const firstErrorField = Object.keys(errors)[0] as keyof LoginInput;
+      const element = document.getElementById(firstErrorField);
+      if (element) {
+        element.focus();
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }, [form.formState.errors, form.formState.submitCount]);
+
+  const onSubmit = async (data: LoginInput) => {
+    const formData = new FormData();
+    formData.append("email", data.email);
+    formData.append("password", data.password);
+
+    React.startTransition(() => {
+      formAction(formData);
+    });
   };
 
-  async function handleSocialSignIn(provider: SocialProvider): Promise<void> {
+  const handleSocialSignIn = async (provider: SocialProvider) => {
     if (provider === "apple") {
-      toast.info("Apple Sign In is not configured yet");
+      toast.info("Apple Sign In is coming soon");
       return;
     }
+
     try {
       const { error } = await authClient.signIn.social({
         provider,
         callbackURL: callbackUrl,
       });
+
       if (error) {
         toast.error(error.message ?? `Failed to sign in with ${provider}`);
       }
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err));
+    } catch (error) {
+      toast.error(getErrorMessage(error));
     }
-  }
+  };
+
+  const hasErrors = Object.keys(form.formState.errors).length > 0;
+  const submitCount = form.formState.submitCount;
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Welcome back</CardTitle>
-          <CardDescription>Login with your Google account</CardDescription>
+          <CardDescription>Sign in to your account to continue</CardDescription>
         </CardHeader>
         <CardContent>
-          <Form {...form}>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void form.handleSubmit(onSubmit)(e);
-              }}
-              noValidate
-            >
-              <FieldGroup>
-                {/* Social buttons stacked vertically */}
-                <Field className="flex flex-col gap-2">
-                  <Button
-                    variant="outline"
-                    type="button"
-                    onClick={() => void handleSocialSignIn("google")}
-                    disabled={isSubmitting}
-                    className="w-full"
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            noValidate
+            aria-label="Login form"
+          >
+            {submitCount > 0 && hasErrors && (
+              <FormErrorSummary
+                errors={form.formState.errors}
+                title="Please correct the following errors:"
+              />
+            )}
+
+            <FieldGroup>
+              <Field>
+                <Button
+                  variant="outline"
+                  type="button"
+                  onClick={() => handleSocialSignIn("google")}
+                  disabled={isSubmitting}
+                  className="w-full"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    className="mr-2 h-4 w-4"
+                    aria-hidden="true"
                   >
-                    <svg
-                      aria-hidden="true"
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      className="mr-2"
-                    >
-                      <path
-                        d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"
-                        fill="currentColor"
+                    <path
+                      d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                  Continue with Google
+                </Button>
+              </Field>
+
+              <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">
+                Or continue with email
+              </FieldSeparator>
+
+              <Controller
+                name="email"
+                control={form.control}
+                render={({ field, fieldState }) => {
+                  const errorId = `${field.name}-error`;
+                  const descriptionId = `${field.name}-description`;
+
+                  return (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor={field.name}>
+                        Email
+                        <span
+                          className="text-destructive"
+                          aria-label="required"
+                        >
+                          {" "}
+                          *
+                        </span>
+                      </FieldLabel>
+                      <Input
+                        {...field}
+                        id={field.name}
+                        type="email"
+                        placeholder="name@example.com"
+                        autoComplete="email"
+                        aria-invalid={fieldState.invalid}
+                        aria-required="true"
+                        aria-describedby={
+                          fieldState.invalid ? errorId : descriptionId
+                        }
+                        disabled={isSubmitting}
+                        className={cn(
+                          fieldState.invalid &&
+                            "border-destructive focus-visible:ring-destructive",
+                        )}
                       />
-                    </svg>
-                    Login with Google
-                  </Button>
-                </Field>
-
-                <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">
-                  Or continue with
-                </FieldSeparator>
-
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({
-                    field,
-                  }: {
-                    field: ControllerRenderProps<LoginInput, "email">;
-                  }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="email"
-                          placeholder="m@example.com"
-                          autoComplete="email"
-                          disabled={isSubmitting}
-                          {...field}
+                      {!fieldState.invalid && (
+                        <FieldDescription id={descriptionId}>
+                          We&apos;ll never share your email with anyone else.
+                        </FieldDescription>
+                      )}
+                      {fieldState.invalid && (
+                        <FieldError
+                          id={errorId}
+                          errors={[fieldState.error]}
+                          role="alert"
+                          aria-live="assertive"
                         />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                      )}
+                    </Field>
+                  );
+                }}
+              />
 
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({
-                    field,
-                  }: {
-                    field: ControllerRenderProps<LoginInput, "password">;
-                  }) => (
-                    <FormItem>
-                      <div className="flex items-center">
-                        <FormLabel>Password</FormLabel>
+              <Controller
+                name="password"
+                control={form.control}
+                render={({ field, fieldState }) => {
+                  const errorId = `${field.name}-error`;
+
+                  return (
+                    <Field data-invalid={fieldState.invalid}>
+                      <div className="flex items-center justify-between">
+                        <FieldLabel htmlFor={field.name}>
+                          Password
+                          <span
+                            className="text-destructive"
+                            aria-label="required"
+                          >
+                            {" "}
+                            *
+                          </span>
+                        </FieldLabel>
                         <Link
                           href="/forgot-password"
-                          className="ml-auto text-sm underline-offset-4 hover:underline"
+                          className="focus:ring-ring text-sm underline-offset-4 hover:underline focus:ring-2 focus:ring-offset-2 focus:outline-none"
+                          tabIndex={isSubmitting ? -1 : 0}
                         >
-                          Forgot your password?
+                          Forgot password?
                         </Link>
                       </div>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          autoComplete="current-password"
-                          disabled={isSubmitting}
-                          {...field}
+                      <PasswordInput
+                        {...field}
+                        id={field.name}
+                        autoComplete="current-password"
+                        aria-invalid={fieldState.invalid}
+                        aria-required="true"
+                        aria-describedby={
+                          fieldState.invalid ? errorId : undefined
+                        }
+                        disabled={isSubmitting}
+                        className={cn(
+                          fieldState.invalid &&
+                            "border-destructive focus-visible:ring-destructive",
+                        )}
+                      />
+                      {fieldState.invalid && (
+                        <FieldError
+                          id={errorId}
+                          errors={[fieldState.error]}
+                          role="alert"
+                          aria-live="assertive"
                         />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                      )}
+                    </Field>
+                  );
+                }}
+              />
 
+              <Field>
                 <Button
                   type="submit"
                   disabled={isSubmitting}
                   className="w-full"
+                  aria-busy={isSubmitting}
                 >
-                  {isSubmitting ? "Logging in..." : "Login"}
+                  {isSubmitting ? (
+                    <>
+                      <Loader2
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                      Signing in...
+                    </>
+                  ) : (
+                    "Sign in"
+                  )}
                 </Button>
-
                 <FieldDescription className="text-center">
                   Don&apos;t have an account?{" "}
                   <Link
                     href="/register"
-                    className="underline underline-offset-4"
+                    className="underline underline-offset-4 hover:no-underline"
+                    tabIndex={isSubmitting ? -1 : 0}
                   >
                     Sign up
                   </Link>
                 </FieldDescription>
-              </FieldGroup>
-            </form>
-          </Form>
+              </Field>
+            </FieldGroup>
+          </form>
         </CardContent>
       </Card>
 
-      <FieldDescription className="px-6 text-center">
-        By clicking continue, you agree to our{" "}
-        <Link href="/terms">Terms of Service</Link> and{" "}
-        <Link href="/privacy">Privacy Policy</Link>.
+      <FieldDescription className="px-6 text-center text-xs text-balance">
+        By continuing, you agree to our{" "}
+        <Link
+          href="/terms"
+          className="underline underline-offset-4 hover:no-underline"
+        >
+          Terms of Service
+        </Link>{" "}
+        and{" "}
+        <Link
+          href="/privacy"
+          className="underline underline-offset-4 hover:no-underline"
+        >
+          Privacy Policy
+        </Link>
+        .
       </FieldDescription>
     </div>
   );
