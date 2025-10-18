@@ -1,10 +1,10 @@
+// src/components/user-nav.tsx
 "use client";
 
 import { useRouter } from "next/navigation";
 import { LayoutDashboard, LogOut, Settings, User } from "lucide-react";
 
-import type { AuthUserType } from "@/server/auth";
-import { authClient } from "@/server/auth/client";
+import { authClient, useSession } from "@/lib/auth/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,12 +17,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-interface UserNavProps {
-  user: AuthUserType;
-}
-
-export function UserNav({ user }: UserNavProps) {
+export function UserNav() {
   const router = useRouter();
+  const { data: session } = useSession();
+
+  // Session will exist here because NavbarActions checks it
+  if (!session?.user) return null;
+
+  const { user } = session;
 
   async function handleLogout() {
     await authClient.signOut();
