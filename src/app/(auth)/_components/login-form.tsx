@@ -1,17 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { useActionState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSafeCallback } from "@/hooks/use-safe-callbacks";
-import { registerSchema, type RegisterInput } from "@/schemas/auth";
+import { loginSchema, type LoginInput } from "@/schemas/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
-import { authClient } from "@/server/auth/client";
+import { authClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,32 +31,38 @@ import {
 import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import { PasswordStrength } from "@/components/ui/password-strength";
-import { registerAction, type ActionState } from "@/app/actions/auth";
 
 type SocialProvider = "google" | "apple";
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
+function getAuthErrorMessage(error: {
+  status?: number;
+  message?: string;
+}): string {
+  const errorMessages: Record<number, string> = {
+    401: "Invalid email or password",
+    403: "Please verify your email before signing in",
+    423: "Your account has been locked. Please contact support.",
+    429: "Too many login attempts. Please try again later.",
+  };
+
+  if (error.status && error.status in errorMessages) {
+    return errorMessages[error.status] ?? "Authentication failed";
+  }
+
+  return error.message ?? "Authentication failed. Please try again.";
 }
 
-export function RegisterForm({
+export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   const router = useRouter();
   const callbackUrl = useSafeCallback();
+  const [isPending, startTransition] = React.useTransition();
 
-  const [actionState, formAction, isPending] = useActionState<
-    ActionState,
-    FormData
-  >(registerAction, null);
-
-  const form = useForm<RegisterInput>({
-    resolver: zodResolver(registerSchema),
+  const form = useForm<LoginInput>({
+    resolver: zodResolver(loginSchema),
     defaultValues: {
-      name: "",
       email: "",
       password: "",
     },
@@ -65,45 +70,12 @@ export function RegisterForm({
     reValidateMode: "onChange",
   });
 
-  const password = form.watch("password");
   const isSubmitting = form.formState.isSubmitting || isPending;
 
-  // Sync server errors
-  React.useEffect(() => {
-    if (actionState?.errors) {
-      Object.entries(actionState.errors).forEach(([field, messages]) => {
-        if (messages && messages.length > 0) {
-          form.setError(field as keyof RegisterInput, {
-            type: "server",
-            message: messages[0],
-          });
-        }
-      });
-    }
-  }, [actionState?.errors, actionState?.timestamp, form]);
-
-  // Handle success
-  React.useEffect(() => {
-    if (actionState?.success) {
-      toast.success(actionState.message ?? "Account created successfully!");
-      setTimeout(() => {
-        router.push("/verify-email");
-      }, 1000);
-    } else if (actionState?.message && !actionState.success) {
-      toast.error(actionState.message);
-    }
-  }, [
-    actionState?.success,
-    actionState?.message,
-    actionState?.timestamp,
-    router,
-  ]);
-
-  // Focus management
   React.useEffect(() => {
     const errors = form.formState.errors;
     if (Object.keys(errors).length > 0) {
-      const firstErrorField = Object.keys(errors)[0] as keyof RegisterInput;
+      const firstErrorField = Object.keys(errors)[0] as keyof LoginInput;
       const element = document.getElementById(firstErrorField);
       if (element) {
         element.focus();
@@ -112,36 +84,67 @@ export function RegisterForm({
     }
   }, [form.formState.errors, form.formState.submitCount]);
 
-  const onSubmit = async (data: RegisterInput) => {
-    const formData = new FormData();
-    formData.append("name", data.name);
-    formData.append("email", data.email);
-    formData.append("password", data.password);
+  async function onSubmit(data: LoginInput) {
+    startTransition(async () => {
+      try {
+        const { data: session, error } = await authClient.signIn.email({
+          email: data.email,
+          password: data.password,
+          callbackURL: callbackUrl,
+        });
 
-    React.startTransition(() => {
-      formAction(formData);
+        if (error) {
+          const errorMessage = getAuthErrorMessage(error);
+
+          if (error.status === 401) {
+            form.setError("password", {
+              type: "manual",
+              message: errorMessage,
+            });
+          } else {
+            toast.error(errorMessage);
+          }
+          return;
+        }
+
+        if (!session) {
+          toast.error("Failed to sign in. Please try again.");
+          return;
+        }
+
+        toast.success("Successfully signed in!");
+
+        router.refresh();
+        router.push(callbackUrl);
+      } catch (error) {
+        console.error("[Login Error]", error);
+        toast.error("An unexpected error occurred. Please try again.");
+      }
     });
-  };
+  }
 
-  const handleSocialSignIn = async (provider: SocialProvider) => {
+  async function handleSocialSignIn(provider: SocialProvider) {
     if (provider === "apple") {
       toast.info("Apple Sign In is coming soon");
       return;
     }
 
-    try {
-      const { error } = await authClient.signIn.social({
-        provider,
-        callbackURL: callbackUrl,
-      });
+    startTransition(async () => {
+      try {
+        const { error } = await authClient.signIn.social({
+          provider,
+          callbackURL: callbackUrl,
+        });
 
-      if (error) {
-        toast.error(error.message ?? `Failed to sign in with ${provider}`);
+        if (error) {
+          toast.error(error.message ?? `Failed to sign in with ${provider}`);
+        }
+      } catch (error) {
+        console.error(`[${provider} Sign In Error]`, error);
+        toast.error("An unexpected error occurred. Please try again.");
       }
-    } catch (error) {
-      toast.error(getErrorMessage(error));
-    }
-  };
+    });
+  }
 
   const hasErrors = Object.keys(form.formState.errors).length > 0;
   const submitCount = form.formState.submitCount;
@@ -150,16 +153,14 @@ export function RegisterForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">Create an account</CardTitle>
-          <CardDescription>
-            Enter your information to get started
-          </CardDescription>
+          <CardTitle className="text-xl">Welcome back</CardTitle>
+          <CardDescription>Sign in to your account to continue</CardDescription>
         </CardHeader>
         <CardContent>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             noValidate
-            aria-label="Registration form"
+            aria-label="Login form"
           >
             {submitCount > 0 && hasErrors && (
               <FormErrorSummary
@@ -176,19 +177,32 @@ export function RegisterForm({
                   onClick={() => handleSocialSignIn("google")}
                   disabled={isSubmitting}
                   className="w-full"
+                  aria-busy={isSubmitting}
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    className="mr-2 h-4 w-4"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                  Continue with Google
+                  {isSubmitting ? (
+                    <>
+                      <Loader2
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        className="mr-2 h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                      Continue with Google
+                    </>
+                  )}
                 </Button>
               </Field>
 
@@ -197,58 +211,11 @@ export function RegisterForm({
               </FieldSeparator>
 
               <Controller
-                name="name"
-                control={form.control}
-                render={({ field, fieldState }) => {
-                  const errorId = `${field.name}-error`;
-
-                  return (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor={field.name}>
-                        Full Name
-                        <span
-                          className="text-destructive"
-                          aria-label="required"
-                        >
-                          {" "}
-                          *
-                        </span>
-                      </FieldLabel>
-                      <Input
-                        {...field}
-                        id={field.name}
-                        type="text"
-                        placeholder="John Doe"
-                        autoComplete="name"
-                        aria-invalid={fieldState.invalid}
-                        aria-required="true"
-                        aria-describedby={
-                          fieldState.invalid ? errorId : undefined
-                        }
-                        disabled={isSubmitting}
-                        className={cn(
-                          fieldState.invalid &&
-                            "border-destructive focus-visible:ring-destructive",
-                        )}
-                      />
-                      {fieldState.invalid && (
-                        <FieldError
-                          id={errorId}
-                          errors={[fieldState.error]}
-                          role="alert"
-                          aria-live="assertive"
-                        />
-                      )}
-                    </Field>
-                  );
-                }}
-              />
-
-              <Controller
                 name="email"
                 control={form.control}
                 render={({ field, fieldState }) => {
                   const errorId = `${field.name}-error`;
+                  const descriptionId = `${field.name}-description`;
 
                   return (
                     <Field data-invalid={fieldState.invalid}>
@@ -271,7 +238,7 @@ export function RegisterForm({
                         aria-invalid={fieldState.invalid}
                         aria-required="true"
                         aria-describedby={
-                          fieldState.invalid ? errorId : undefined
+                          fieldState.invalid ? errorId : descriptionId
                         }
                         disabled={isSubmitting}
                         className={cn(
@@ -279,6 +246,11 @@ export function RegisterForm({
                             "border-destructive focus-visible:ring-destructive",
                         )}
                       />
+                      {!fieldState.invalid && (
+                        <FieldDescription id={descriptionId}>
+                          We&apos;ll never share your email with anyone else.
+                        </FieldDescription>
+                      )}
                       {fieldState.invalid && (
                         <FieldError
                           id={errorId}
@@ -300,20 +272,29 @@ export function RegisterForm({
 
                   return (
                     <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor={field.name}>
-                        Password
-                        <span
-                          className="text-destructive"
-                          aria-label="required"
+                      <div className="flex items-center justify-between">
+                        <FieldLabel htmlFor={field.name}>
+                          Password
+                          <span
+                            className="text-destructive"
+                            aria-label="required"
+                          >
+                            {" "}
+                            *
+                          </span>
+                        </FieldLabel>
+                        <Link
+                          href="/forgot-password"
+                          className="focus:ring-ring text-sm underline-offset-4 hover:underline focus:ring-2 focus:ring-offset-2 focus:outline-none"
+                          tabIndex={isSubmitting ? -1 : 0}
                         >
-                          {" "}
-                          *
-                        </span>
-                      </FieldLabel>
+                          Forgot password?
+                        </Link>
+                      </div>
                       <PasswordInput
                         {...field}
                         id={field.name}
-                        autoComplete="new-password"
+                        autoComplete="current-password"
                         aria-invalid={fieldState.invalid}
                         aria-required="true"
                         aria-describedby={
@@ -325,9 +306,6 @@ export function RegisterForm({
                             "border-destructive focus-visible:ring-destructive",
                         )}
                       />
-                      {!fieldState.invalid && password && (
-                        <PasswordStrength password={password} />
-                      )}
                       {fieldState.invalid && (
                         <FieldError
                           id={errorId}
@@ -354,20 +332,20 @@ export function RegisterForm({
                         className="mr-2 h-4 w-4 animate-spin"
                         aria-hidden="true"
                       />
-                      Creating account...
+                      Signing in...
                     </>
                   ) : (
-                    "Create account"
+                    "Sign in"
                   )}
                 </Button>
                 <FieldDescription className="text-center">
-                  Already have an account?{" "}
+                  Don&apos;t have an account?{" "}
                   <Link
-                    href="/login"
+                    href="/register"
                     className="underline underline-offset-4 hover:no-underline"
                     tabIndex={isSubmitting ? -1 : 0}
                   >
-                    Sign in
+                    Sign up
                   </Link>
                 </FieldDescription>
               </Field>

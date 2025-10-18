@@ -1,7 +1,7 @@
+// src/app/(auth)/_components/forgot-password-form.tsx
 "use client";
 
 import * as React from "react";
-import { useActionState } from "react";
 import Link from "next/link";
 import { forgotPasswordSchema, type ForgotPasswordInput } from "@/schemas/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
+import { authClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,16 +28,13 @@ import {
 } from "@/components/ui/field";
 import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import { Input } from "@/components/ui/input";
-import { forgotPasswordAction, type ActionState } from "@/app/actions/auth";
 
 export function ForgotPasswordForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
-  const [actionState, formAction, isPending] = useActionState<
-    ActionState,
-    FormData
-  >(forgotPasswordAction, null);
+  const [isPending, startTransition] = React.useTransition();
+  const [emailSent, setEmailSent] = React.useState(false);
 
   const form = useForm<ForgotPasswordInput>({
     resolver: zodResolver(forgotPasswordSchema),
@@ -49,50 +47,52 @@ export function ForgotPasswordForm({
 
   const isSubmitting = form.formState.isSubmitting || isPending;
 
-  // Sync server errors
-  React.useEffect(() => {
-    if (actionState?.errors) {
-      Object.entries(actionState.errors).forEach(([field, messages]) => {
-        if (messages && messages.length > 0) {
-          form.setError(field as keyof ForgotPasswordInput, {
-            type: "server",
-            message: messages[0],
-          });
+  async function onSubmit(data: ForgotPasswordInput) {
+    startTransition(async () => {
+      try {
+        const { error } = await authClient.forgetPassword({
+          email: data.email,
+          redirectTo: "/reset-password",
+        });
+
+        if (error) {
+          // Don't reveal if email exists for security
+          // But still show user-friendly message
+          console.error("[Forgot Password Error]", error);
         }
-      });
-    }
-  }, [actionState?.errors, actionState?.timestamp, form]);
 
-  // Handle success
-  React.useEffect(() => {
-    if (actionState?.success) {
-      toast.success(actionState.message ?? "Reset link sent!");
-    } else if (actionState?.message && !actionState.success) {
-      toast.error(actionState.message);
-    }
-  }, [actionState?.success, actionState?.message, actionState?.timestamp]);
-
-  const onSubmit = async (data: ForgotPasswordInput) => {
-    const formData = new FormData();
-    formData.append("email", data.email);
-
-    React.startTransition(() => {
-      formAction(formData);
+        // Always show success to prevent email enumeration
+        setEmailSent(true);
+        toast.success("If an account exists, you'll receive a reset link");
+      } catch (error) {
+        console.error("[Forgot Password Error]", error);
+        // Still show success message for security
+        setEmailSent(true);
+        toast.success("If an account exists, you'll receive a reset link");
+      }
     });
-  };
+  }
 
-  if (actionState?.success) {
+  if (emailSent) {
     return (
       <div className={cn("flex flex-col gap-6", className)} {...props}>
         <Card>
           <CardHeader>
             <CardTitle>Check your email</CardTitle>
             <CardDescription>
-              We sent you a password reset link. Please check your email.
+              If an account exists with that email, we&apos;ve sent you a
+              password reset link. Please check your inbox and spam folder.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Button asChild variant="outline" className="w-full">
+          <CardContent className="space-y-4">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setEmailSent(false)}
+            >
+              Send another link
+            </Button>
+            <Button asChild variant="ghost" className="w-full">
               <Link href="/login">Back to login</Link>
             </Button>
           </CardContent>

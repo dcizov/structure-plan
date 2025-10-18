@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useActionState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resetPasswordSchema, type ResetPasswordInput } from "@/schemas/auth";
@@ -10,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
+import { authClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +29,6 @@ import {
 import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import { PasswordInput } from "@/components/ui/password-input";
 import { PasswordStrength } from "@/components/ui/password-strength";
-import { resetPasswordAction, type ActionState } from "@/app/actions/auth";
 
 export function ResetPasswordForm({
   className,
@@ -39,10 +38,8 @@ export function ResetPasswordForm({
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
-  const [actionState, formAction, isPending] = useActionState<
-    ActionState,
-    FormData
-  >(resetPasswordAction, null);
+  const [isPending, startTransition] = React.useTransition();
+  const [resetSuccess, setResetSuccess] = React.useState(false);
 
   const form = useForm<ResetPasswordInput>({
     resolver: zodResolver(resetPasswordSchema),
@@ -56,37 +53,6 @@ export function ResetPasswordForm({
 
   const password = form.watch("password");
   const isSubmitting = form.formState.isSubmitting || isPending;
-
-  // Sync server errors
-  React.useEffect(() => {
-    if (actionState?.errors) {
-      Object.entries(actionState.errors).forEach(([field, messages]) => {
-        if (messages && messages.length > 0) {
-          form.setError(field as keyof ResetPasswordInput, {
-            type: "server",
-            message: messages[0],
-          });
-        }
-      });
-    }
-  }, [actionState?.errors, actionState?.timestamp, form]);
-
-  // Handle success
-  React.useEffect(() => {
-    if (actionState?.success) {
-      toast.success(actionState.message ?? "Password reset successful!");
-      setTimeout(() => {
-        router.push("/login");
-      }, 2000);
-    } else if (actionState?.message && !actionState.success) {
-      toast.error(actionState.message);
-    }
-  }, [
-    actionState?.success,
-    actionState?.message,
-    actionState?.timestamp,
-    router,
-  ]);
 
   // Focus management
   React.useEffect(() => {
@@ -103,6 +69,51 @@ export function ResetPasswordForm({
     }
   }, [form.formState.errors, form.formState.submitCount]);
 
+  async function onSubmit(data: ResetPasswordInput) {
+    if (!token) {
+      toast.error("Invalid reset token");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const { error } = await authClient.resetPassword({
+          newPassword: data.password,
+          token,
+        });
+
+        if (error) {
+          if (error.message?.toLowerCase().includes("expired")) {
+            toast.error("Reset link has expired. Please request a new one.");
+            setTimeout(() => {
+              router.push("/forgot-password");
+            }, 2000);
+          } else if (error.message?.toLowerCase().includes("invalid")) {
+            toast.error("Invalid reset link. Please request a new one.");
+            setTimeout(() => {
+              router.push("/forgot-password");
+            }, 2000);
+          } else {
+            toast.error(error.message ?? "Failed to reset password");
+          }
+          return;
+        }
+
+        setResetSuccess(true);
+        toast.success("Password reset successful! Redirecting to login...");
+
+        setTimeout(() => {
+          router.refresh();
+          router.push("/login");
+        }, 2000);
+      } catch (error) {
+        console.error("[Reset Password Error]", error);
+        toast.error("An unexpected error occurred. Please try again.");
+      }
+    });
+  }
+
+  // Invalid token state
   if (!token) {
     return (
       <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -110,7 +121,8 @@ export function ResetPasswordForm({
           <CardHeader>
             <CardTitle>Invalid reset link</CardTitle>
             <CardDescription>
-              This password reset link is invalid or has expired.
+              This password reset link is invalid or has expired. Please request
+              a new one.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -123,31 +135,26 @@ export function ResetPasswordForm({
     );
   }
 
-  if (actionState?.success) {
+  // Success state
+  if (resetSuccess) {
     return (
       <div className={cn("flex flex-col gap-6", className)} {...props}>
         <Card>
           <CardHeader>
             <CardTitle>Password reset successful</CardTitle>
             <CardDescription>
-              Your password has been reset. Redirecting to login...
+              Your password has been reset successfully. Redirecting to login...
             </CardDescription>
           </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
+            </div>
+          </CardContent>
         </Card>
       </div>
     );
   }
-
-  const onSubmit = async (data: ResetPasswordInput) => {
-    const formData = new FormData();
-    formData.append("password", data.password);
-    formData.append("confirmPassword", data.confirmPassword);
-    formData.append("token", token);
-
-    React.startTransition(() => {
-      formAction(formData);
-    });
-  };
 
   const hasErrors = Object.keys(form.formState.errors).length > 0;
   const submitCount = form.formState.submitCount;
@@ -281,7 +288,7 @@ export function ResetPasswordForm({
                         className="mr-2 h-4 w-4 animate-spin"
                         aria-hidden="true"
                       />
-                      Resetting...
+                      Resetting password...
                     </>
                   ) : (
                     "Reset password"
