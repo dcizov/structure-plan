@@ -1,0 +1,12 @@
+# Build outputs
+.next/
+out/
+build/
+
+# Dependencies
+node_modules/
+
+# Cache files
+.eslintcache
+*.tsbuildinfo
+.turbo/
