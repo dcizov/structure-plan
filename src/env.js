@@ -5,8 +5,8 @@ export const env = createEnv({
   server: {
     BETTER_AUTH_SECRET: z.string(),
     BETTER_AUTH_URL: z.url(),
-    // GOOGLE_CLIENT_ID: z.string(),
-    // GOOGLE_CLIENT_SECRET: z.string(),
+    GOOGLE_CLIENT_ID: z.string(),
+    GOOGLE_CLIENT_SECRET: z.string(),
     DATABASE_URL: z.url(),
     RESEND_API_KEY: z.string().min(1),
     EMAIL_FROM: z.email(),
@@ -23,8 +23,8 @@ export const env = createEnv({
   runtimeEnv: {
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
-    // GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-    // GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
     DATABASE_URL: process.env.DATABASE_URL,
     NEXT_PUBLIC_BETTER_AUTH_URL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
     EMAIL_VERIFICATION_CALLBACK_URL:
