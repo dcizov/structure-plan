@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resetPasswordSchema, type ResetPasswordInput } from "@/schemas/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -28,6 +27,7 @@ import {
 } from "@/components/ui/field";
 import { PasswordInput } from "@/components/ui/password-input";
 import { PasswordStrength } from "@/components/ui/password-strength";
+import { Spinner } from "@/components/ui/spinner";
 
 /**
  * Better Auth error type
@@ -252,7 +252,7 @@ export function ResetPasswordForm({
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
+              <Spinner />
             </div>
           </CardContent>
         </Card>
@@ -378,10 +378,7 @@ export function ResetPasswordForm({
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
+                      <Spinner className="mr-2" />
                       Resetting password...
                     </>
                   ) : (

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function EmailVerifiedPage() {
   const router = useRouter();
@@ -58,10 +59,7 @@ export default function EmailVerifiedPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-center">
-            <Loader2
-              className="text-muted-foreground h-5 w-5 animate-spin"
-              aria-hidden="true"
-            />
+            <Spinner className="text-muted-foreground" />
           </div>
           <div className="space-y-2">
             <Button asChild className="w-full">

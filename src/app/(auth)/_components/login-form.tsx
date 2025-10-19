@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useSafeCallback } from "@/hooks/use-safe-callbacks";
 import { loginSchema, type LoginInput } from "@/schemas/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -30,6 +29,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
+import { Spinner } from "@/components/ui/spinner";
 
 type SocialProvider = "google" | "apple";
 
@@ -288,10 +288,7 @@ export function LoginForm({
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
+                      <Spinner className="mr-2" />
                       Signing in...
                     </>
                   ) : (
@@ -435,10 +432,7 @@ export function LoginForm({
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
+                      <Spinner className="mr-2" />
                       Signing in...
                     </>
                   ) : (

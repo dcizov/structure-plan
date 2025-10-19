@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useSafeCallback } from "@/hooks/use-safe-callbacks";
 import { registerSchema, type RegisterInput } from "@/schemas/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -31,6 +30,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { PasswordStrength } from "@/components/ui/password-strength";
+import { Spinner } from "@/components/ui/spinner";
 
 type SocialProvider = "google" | "apple";
 
@@ -286,10 +286,7 @@ export function RegisterForm({
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
+                      <Spinner className="mr-2" />
                       Signing up...
                     </>
                   ) : (
@@ -469,10 +466,7 @@ export function RegisterForm({
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
+                      <Spinner className="mr-2" />
                       Creating account...
                     </>
                   ) : (

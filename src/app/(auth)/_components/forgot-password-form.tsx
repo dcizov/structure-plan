@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { forgotPasswordSchema, type ForgotPasswordInput } from "@/schemas/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -26,6 +25,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 
 /**
  * Better Auth error type
@@ -241,10 +241,7 @@ export function ForgotPasswordForm({
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
+                      <Spinner className="mr-2" />
                       Sending...
                     </>
                   ) : (

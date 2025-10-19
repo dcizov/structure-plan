@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, Loader2, Mail, XCircle } from "lucide-react";
+import { CheckCircle2, Mail, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { authClient } from "@/lib/auth/client";
@@ -16,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 
 type VerificationStatus = "idle" | "verifying" | "success" | "error";
 
@@ -144,10 +145,7 @@ export function VerifyEmail({
         <Card>
           <CardHeader className="text-center">
             <div className="bg-primary/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
-              <Loader2
-                className="text-primary h-6 w-6 animate-spin"
-                aria-hidden="true"
-              />
+              <Spinner className="text-primary" />
             </div>
             <CardTitle>Verifying your email</CardTitle>
             <CardDescription>
@@ -182,10 +180,7 @@ export function VerifyEmail({
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-center">
-              <Loader2
-                className="text-muted-foreground h-5 w-5 animate-spin"
-                aria-hidden="true"
-              />
+              <Spinner className="text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
