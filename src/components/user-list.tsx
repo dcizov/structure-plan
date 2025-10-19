@@ -56,7 +56,7 @@ function UserListError() {
         Failed to load users. Please sign in again.
       </p>
       <Button asChild variant="outline" size="sm">
-        <Link href="/login">Sign In</Link>
+        <Link href="/sgnin">Sign In</Link>
       </Button>
     </div>
   );

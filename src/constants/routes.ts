@@ -5,8 +5,8 @@
 
 export const ROUTES = {
   HOME: "/",
-  LOGIN: "/login",
-  REGISTER: "/register",
+  SIGNIN: "/sgnin",
+  SIGNUP: "/signup",
   VERIFY_EMAIL: "/verify-email",
   FORGOT_PASSWORD: "/forgot-password",
   RESET_PASSWORD: "/reset-password",
@@ -27,8 +27,8 @@ export const ROUTES = {
  * Used by middleware for route protection
  */
 export const GUEST_ONLY_ROUTES = [
-  ROUTES.LOGIN,
-  ROUTES.REGISTER,
+  ROUTES.SIGNIN,
+  ROUTES.SIGNUP,
   ROUTES.FORGOT_PASSWORD,
   ROUTES.RESET_PASSWORD,
   ROUTES.VERIFY_EMAIL,

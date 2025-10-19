@@ -22,10 +22,10 @@ export function NavbarActions() {
     return (
       <>
         <Button asChild variant="outline" className="hidden sm:inline-flex">
-          <Link href="/login">Sign In</Link>
+          <Link href="/sgnin">Sign In</Link>
         </Button>
         <Button asChild>
-          <Link href="/register">Sign Up</Link>
+          <Link href="/signup">Sign Up</Link>
         </Button>
       </>
     );

@@ -2,7 +2,7 @@ import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
 
-export default async function Home() {
+export default async function HomePage() {
   return (
     <div className="grid min-h-[calc(100dvh-4rem)] place-items-center">
       <div className="container px-4 md:px-6">
