@@ -1,17 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  ADMIN_ROUTES,
+  GUEST_ONLY_ROUTES,
+  NO_AUTH_ROUTES,
+  PROTECTED_ROUTES,
+} from "@/constants/routes";
 import { betterFetch } from "@better-fetch/fetch";
 
 import { env } from "@/env";
 import type { Session } from "@/server/auth";
 import { getSafeCallbackUrl } from "@/lib/url";
 
-const guestOnlyRoutes = ["/login", "/register", "/forgot-password"];
-
-const protectedRoutes = ["/reset-password", "/verify-email"];
-
-const adminRoutes = ["/admin"];
-
-function matchesRoute(pathname: string, routes: readonly string[]): boolean {
+function matchesRoute(
+  pathname: string,
+  routes: readonly string[] | string[],
+): boolean {
   return routes.some(
     (route) => pathname === route || pathname.startsWith(route + "/"),
   );
@@ -20,9 +23,14 @@ function matchesRoute(pathname: string, routes: readonly string[]): boolean {
 export default async function authMiddleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
 
-  const isGuestOnlyRoute = matchesRoute(pathname, guestOnlyRoutes);
-  const isProtectedRoute = matchesRoute(pathname, protectedRoutes);
-  const isAdminRoute = matchesRoute(pathname, adminRoutes);
+  // Skip auth check for public routes (performance optimization)
+  if (matchesRoute(pathname, NO_AUTH_ROUTES)) {
+    return NextResponse.next();
+  }
+
+  const isGuestOnlyRoute = matchesRoute(pathname, GUEST_ONLY_ROUTES);
+  const isProtectedRoute = matchesRoute(pathname, PROTECTED_ROUTES);
+  const isAdminRoute = matchesRoute(pathname, ADMIN_ROUTES);
 
   const { data: session } = await betterFetch<Session>(
     "/api/auth/get-session",
@@ -34,33 +42,41 @@ export default async function authMiddleware(request: NextRequest) {
     },
   );
 
+  // Not authenticated
   if (!session) {
+    // Allow guest-only routes (login, register, etc.)
     if (isGuestOnlyRoute) {
       return NextResponse.next();
     }
 
+    // Redirect to login if trying to access protected or admin routes
     if (isProtectedRoute || isAdminRoute) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);
     }
 
+    // Allow access to public routes
     return NextResponse.next();
   }
 
+  // Authenticated user trying to access guest-only routes
   if (isGuestOnlyRoute) {
     const callbackParam = searchParams.get("callbackUrl");
     const callbackUrl = getSafeCallbackUrl(callbackParam);
     return NextResponse.redirect(new URL(callbackUrl, request.url));
   }
 
+  // Check admin access (admin routes require admin role)
   if (isAdminRoute) {
     const user = session.user as { role?: string };
     if (user.role !== "admin") {
-      return NextResponse.redirect(new URL("/", request.url));
+      // Redirect non-admin users to dashboard home
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     }
   }
 
+  // Allow access to protected routes (user is authenticated)
   return NextResponse.next();
 }
 
