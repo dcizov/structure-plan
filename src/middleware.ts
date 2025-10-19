@@ -65,16 +65,16 @@ export default async function authMiddleware(request: NextRequest) {
 
   // No session cookie found (likely not authenticated)
   if (!hasSessionCookie) {
-    // Allow guest-only routes (login, register, forgot-password, etc.)
+    // Allow guest-only routes (sign-in, sign-up, forgot-password, etc.)
     if (isGuestOnlyRoute) {
       return NextResponse.next();
     }
 
-    // Redirect to login if trying to access protected or admin routes
+    // Redirect to sign-in if trying to access protected or admin routes
     if (isProtectedRoute || isAdminRoute) {
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("callbackUrl", pathname);
-      return NextResponse.redirect(loginUrl);
+      const signInUrl = new URL("/sgnin", request.url);
+      signInUrl.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(signInUrl);
     }
 
     // Allow access to public routes (home, about, etc.)

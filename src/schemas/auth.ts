@@ -18,14 +18,14 @@ const passwordSchema = z
   .min(8, { message: "Password must be at least 8 characters" })
   .max(128, { message: "Password must not exceed 128 characters" });
 
-// Login schema
-export const loginSchema = z.object({
+// SignIn schema
+export const signInSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
 });
 
-// Register schema with enhanced password requirements
-export const registerSchema = z.object({
+// SignUp schema with enhanced password requirements
+export const signUpSchema = z.object({
   name: z
     .string()
     .min(1, { message: "Name is required" })
@@ -85,7 +85,7 @@ export const resetPasswordSchema = z
     path: ["confirmPassword"],
   });
 
-export type LoginInput = z.infer<typeof loginSchema>;
-export type RegisterInput = z.infer<typeof registerSchema>;
+export type SignInInput = z.infer<typeof signInSchema>;
+export type SignUpInput = z.infer<typeof signUpSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

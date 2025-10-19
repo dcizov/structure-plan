@@ -160,7 +160,7 @@ export const userRouter = {
    * Public: Anyone can view user directory
    *
    * Privacy consideration: Depending on your app, you may want to:
-   * - Make this protectedProcedure (require login to see users)
+   * - Make this protectedProcedure (require sign-in to see users)
    * - Make this adminProcedure (only admins see full user list)
    * - Add privacy settings to user schema (allow users to opt out)
    */
