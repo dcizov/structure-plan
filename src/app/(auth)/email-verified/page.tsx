@@ -29,8 +29,7 @@ export default function EmailVerifiedPage() {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          //TODO: redirect to /dashboard after its implemented
-          router.push("/");
+          router.push("/dashboard");
           return 0;
         }
         return prev - 1;

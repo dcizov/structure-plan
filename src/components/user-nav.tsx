@@ -29,7 +29,7 @@ export function UserNav() {
   const { user } = session;
 
   /**
-   * Handle user logout - works identically for all auth methods
+   * Handle user sign-out - works identically for all auth methods
    *
    * Better Auth signOut flow (same for email/password, Google OAuth, etc.):
    * 1. Client calls authClient.signOut()
@@ -50,7 +50,7 @@ export function UserNav() {
    * - Next.js router cache must be invalidated
    * - Middleware needs to re-evaluate with the cleared cookie
    */
-  async function handleLogout() {
+  async function handleSignOut() {
     setIsLoggingOut(true);
 
     try {
@@ -63,8 +63,8 @@ export function UserNav() {
           onError: (ctx) => {
             // Server-side error (network issue or database error)
             // Cookie is still cleared client-side, but server session might persist
-            console.error("Server logout error:", ctx.error);
-            toast.error("Logout completed with warnings", {
+            console.error("Server sign-out error:", ctx.error);
+            toast.error("Sign out completed with warnings", {
               description:
                 "You've been logged out locally. If issues persist, clear your cookies.",
             });
@@ -74,8 +74,8 @@ export function UserNav() {
     } catch (error) {
       // Unexpected error (network failure, etc.)
       // This is rare - Better Auth's signOut is designed to be very reliable
-      console.error("Unexpected logout error:", error);
-      toast.error("Logout completed", {
+      console.error("Unexpected sign-out error:", error);
+      toast.error("Sign out completed", {
         description:
           "There was a network issue, but you've been logged out locally.",
       });
@@ -151,7 +151,7 @@ export function UserNav() {
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={handleLogout}
+          onClick={handleSignOut}
           className="text-destructive focus:text-destructive cursor-pointer"
           disabled={isLoggingOut}
         >
