@@ -72,7 +72,7 @@ export default async function authMiddleware(request: NextRequest) {
 
     // Redirect to sign-in if trying to access protected or admin routes
     if (isProtectedRoute || isAdminRoute) {
-      const signInUrl = new URL("/sgnin", request.url);
+      const signInUrl = new URL("/signin", request.url);
       signInUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(signInUrl);
     }

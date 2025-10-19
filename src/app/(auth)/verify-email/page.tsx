@@ -207,7 +207,7 @@ export default function VerifyEmailPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             <Button asChild variant="outline" className="w-full">
-              <Link href="/sgnin">Back to sign-in</Link>
+              <Link href="/signin">Back to sign-in</Link>
             </Button>
             <Button asChild variant="ghost" className="w-full">
               <Link href="/signup">Create new account</Link>
@@ -247,7 +247,7 @@ export default function VerifyEmailPage() {
           </div>
           <div className="space-y-2">
             <Button asChild variant="outline" className="w-full">
-              <Link href="/sgnin">Back to sign-in</Link>
+              <Link href="/signin">Back to sign-in</Link>
             </Button>
           </div>
         </CardContent>
