@@ -5,12 +5,19 @@ import {
   NO_AUTH_ROUTES,
   PROTECTED_ROUTES,
 } from "@/constants/routes";
-import { betterFetch } from "@better-fetch/fetch";
 
-import { env } from "@/env";
-import type { Session } from "@/server/auth";
 import { getSafeCallbackUrl } from "@/lib/url";
 
+/**
+ * Better Auth session cookie name
+ * Adjust if you've customized the cookiePrefix in your auth config
+ */
+const SESSION_COOKIE_NAME = "better-auth.session_token";
+
+/**
+ * Matches pathname against route patterns
+ * Supports exact matches and prefix matching with trailing slash
+ */
 function matchesRoute(
   pathname: string,
   routes: readonly string[] | string[],
@@ -20,6 +27,25 @@ function matchesRoute(
   );
 }
 
+/**
+ * Optimistic authentication middleware
+ *
+ * PERFORMANCE CRITICAL: This middleware ONLY performs fast cookie checks.
+ * It does NOT validate sessions against the database.
+ *
+ * Why cookie-only checks?
+ * - Middleware runs on EVERY request (static files, images, etc.)
+ * - Database calls would create massive performance overhead
+ * - Better Auth caches sessions for 5 minutes, but that's still a DB hit
+ *
+ * Actual session validation happens at:
+ * 1. Page/Layout level using getServerSession()
+ * 2. API/ORPC level in protected procedures
+ *
+ * This creates a defense-in-depth security model:
+ * - Middleware: Fast routing decisions (optimistic)
+ * - Pages/API: Actual security validation (authoritative)
+ */
 export default async function authMiddleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
 
@@ -32,19 +58,14 @@ export default async function authMiddleware(request: NextRequest) {
   const isProtectedRoute = matchesRoute(pathname, PROTECTED_ROUTES);
   const isAdminRoute = matchesRoute(pathname, ADMIN_ROUTES);
 
-  const { data: session } = await betterFetch<Session>(
-    "/api/auth/get-session",
-    {
-      baseURL: env.BETTER_AUTH_URL,
-      headers: {
-        cookie: request.headers.get("cookie") ?? "",
-      },
-    },
-  );
+  // Optimistic session check - only verify cookie presence, not validity
+  // The actual session could be expired/invalid - that's validated at page level
+  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME);
+  const hasSessionCookie = !!sessionCookie?.value;
 
-  // Not authenticated
-  if (!session) {
-    // Allow guest-only routes (login, register, etc.)
+  // No session cookie found (likely not authenticated)
+  if (!hasSessionCookie) {
+    // Allow guest-only routes (login, register, forgot-password, etc.)
     if (isGuestOnlyRoute) {
       return NextResponse.next();
     }
@@ -56,27 +77,28 @@ export default async function authMiddleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // Allow access to public routes
+    // Allow access to public routes (home, about, etc.)
     return NextResponse.next();
   }
 
-  // Authenticated user trying to access guest-only routes
+  // Session cookie exists (optimistic authentication)
+  // Important: We don't know if the session is valid yet - just that cookie exists
+
+  // Redirect authenticated users away from guest-only routes
   if (isGuestOnlyRoute) {
     const callbackParam = searchParams.get("callbackUrl");
     const callbackUrl = getSafeCallbackUrl(callbackParam);
     return NextResponse.redirect(new URL(callbackUrl, request.url));
   }
 
-  // Check admin access (admin routes require admin role)
-  if (isAdminRoute) {
-    const user = session.user as { role?: string };
-    if (user.role !== "admin") {
-      // Redirect non-admin users to dashboard home
-      return NextResponse.redirect(new URL("/dashboard", request.url));
-    }
+  // For protected/admin routes, allow through
+  // Role/permission validation MUST happen at the page/layout level
+  // because we can't access the database here for performance reasons
+  if (isProtectedRoute || isAdminRoute) {
+    return NextResponse.next();
   }
 
-  // Allow access to protected routes (user is authenticated)
+  // Allow access to all other routes
   return NextResponse.next();
 }
 

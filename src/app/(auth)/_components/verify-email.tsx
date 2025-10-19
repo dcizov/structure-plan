@@ -19,6 +19,32 @@ import {
 
 type VerificationStatus = "idle" | "verifying" | "success" | "error";
 
+/**
+ * Better Auth error type
+ * All Better Auth methods return errors with this structure
+ */
+type BetterAuthError = {
+  status?: number;
+  message?: string;
+  statusText?: string;
+};
+
+/**
+ * Check if error indicates expired or invalid token
+ *
+ * @param error - Better Auth error object
+ * @returns true if token is expired or invalid
+ */
+function isTokenError(error: BetterAuthError): boolean {
+  const message = error.message?.toLowerCase() ?? "";
+  return (
+    message.includes("expired") ||
+    message.includes("invalid") ||
+    error.status === 401 ||
+    error.status === 403
+  );
+}
+
 export function VerifyEmail({
   className,
   ...props
@@ -32,6 +58,26 @@ export function VerifyEmail({
   );
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
+  /**
+   * Auto-verify email when component mounts with token
+   *
+   * Better Auth verifyEmail flow:
+   * 1. Validates the verification token
+   * 2. If valid: Marks user's email as verified in database
+   * 3. If invalid/expired: Returns error
+   * 4. Updates session to reflect verified status
+   *
+   * Token validation:
+   * - Tokens are typically valid for 24 hours (configurable)
+   * - Each token can only be used once
+   * - Tokens are invalidated if user requests a new one
+   *
+   * Why fetchOptions?
+   * - Provides clear separation between success and error handling
+   * - Allows custom error messages based on error type
+   * - Enables automatic redirect on success
+   * - Better error logging and debugging
+   */
   React.useEffect(() => {
     if (!token) {
       setStatus("idle");
@@ -42,28 +88,41 @@ export function VerifyEmail({
 
     async function verifyEmail() {
       try {
-        const { error } = await authClient.verifyEmail({
+        await authClient.verifyEmail({
           query: { token: verificationToken },
+          fetchOptions: {
+            onSuccess: () => {
+              setStatus("success");
+              toast.success("Email verified successfully! Redirecting...");
+
+              // Refresh to sync server-side session state
+              router.refresh();
+
+              // Redirect to dashboard after brief delay for user to see success
+              setTimeout(() => {
+                router.push("/dashboard");
+              }, 2000);
+            },
+            onError: (ctx) => {
+              const error = ctx.error as BetterAuthError;
+
+              // Determine appropriate error message
+              let message: string;
+              if (isTokenError(error)) {
+                message = "This verification link is invalid or has expired.";
+              } else {
+                message =
+                  error.message ?? "Failed to verify email. Please try again.";
+              }
+
+              setErrorMessage(message);
+              setStatus("error");
+              toast.error(message);
+            },
+          },
         });
-
-        if (error) {
-          const message =
-            error.message ?? "Failed to verify email. Please try again.";
-          setErrorMessage(message);
-          setStatus("error");
-          toast.error(message);
-          return;
-        }
-
-        setStatus("success");
-        toast.success("Email verified successfully! Redirecting...");
-
-        router.refresh();
-
-        setTimeout(() => {
-          router.push("/dashboard");
-        }, 2000);
       } catch (error) {
+        // Catch unexpected errors (network failures, etc.)
         console.error("[Email Verification Error]", error);
         const message = "An unexpected error occurred during verification";
         setErrorMessage(message);
@@ -75,7 +134,10 @@ export function VerifyEmail({
     void verifyEmail();
   }, [token, router]);
 
-  // Verifying state
+  /**
+   * Verifying state
+   * Show loading spinner while verification is in progress
+   */
   if (status === "verifying") {
     return (
       <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -97,6 +159,10 @@ export function VerifyEmail({
     );
   }
 
+  /**
+   * Success state
+   * Show success message while redirecting to dashboard
+   */
   if (status === "success") {
     return (
       <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -127,6 +193,10 @@ export function VerifyEmail({
     );
   }
 
+  /**
+   * Error state
+   * Show error message with options to retry or go back
+   */
   if (status === "error") {
     return (
       <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -157,6 +227,10 @@ export function VerifyEmail({
     );
   }
 
+  /**
+   * Idle state (no token provided)
+   * Show instructions to check email for verification link
+   */
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
@@ -166,8 +240,8 @@ export function VerifyEmail({
           </div>
           <CardTitle>Check your email</CardTitle>
           <CardDescription>
-            We&apos;ve sent you a verification link. Please check your email and
-            click the link to verify your account.
+            We&apos;ve sent you a verification link. Click the link in the email
+            to verify your account and you&apos;ll be automatically signed in.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -177,15 +251,12 @@ export function VerifyEmail({
                 Didn&apos;t receive the email?
               </strong>
               <br />
-              Check your spam folder or request a new verification email.
+              Check your spam folder. The verification link expires in 1 hour.
             </p>
           </div>
           <div className="space-y-2">
             <Button asChild variant="outline" className="w-full">
               <Link href="/login">Back to login</Link>
-            </Button>
-            <Button variant="ghost" className="w-full" disabled>
-              Resend verification email (coming soon)
             </Button>
           </div>
         </CardContent>

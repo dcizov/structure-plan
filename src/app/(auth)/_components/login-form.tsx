@@ -28,16 +28,34 @@ import {
   FieldLabel,
   FieldSeparator,
 } from "@/components/ui/field";
-import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 
 type SocialProvider = "google" | "apple";
 
-function getAuthErrorMessage(error: {
+/**
+ * Better Auth error type
+ * All Better Auth methods return errors with this structure
+ */
+type BetterAuthError = {
   status?: number;
   message?: string;
-}): string {
+  statusText?: string;
+};
+
+/**
+ * Convert Better Auth errors to user-friendly messages
+ *
+ * Status code mapping:
+ * - 401: Invalid credentials (wrong email/password)
+ * - 403: Email not verified yet
+ * - 423: Account locked (security measure)
+ * - 429: Rate limited (too many attempts)
+ *
+ * @param error - Better Auth error object
+ * @returns User-friendly error message
+ */
+function getAuthErrorMessage(error: BetterAuthError): string {
   const errorMessages: Record<number, string> = {
     401: "Invalid email or password",
     403: "Please verify your email before signing in",
@@ -72,6 +90,10 @@ export function LoginForm({
 
   const isSubmitting = form.formState.isSubmitting || isPending;
 
+  /**
+   * Focus management for accessibility
+   * Automatically scrolls to and focuses the first field with an error
+   */
   React.useEffect(() => {
     const errors = form.formState.errors;
     if (Object.keys(errors).length > 0) {
@@ -84,6 +106,48 @@ export function LoginForm({
     }
   }, [form.formState.errors, form.formState.submitCount]);
 
+  /**
+   * Show validation errors as toast notification
+   * Triggered after form submission when validation fails
+   */
+  React.useEffect(() => {
+    const errors = form.formState.errors;
+    const submitCount = form.formState.submitCount;
+
+    // Only show toast after user has attempted to submit
+    if (submitCount > 0 && Object.keys(errors).length > 0) {
+      const errorMessages = Object.values(errors)
+        .map((error) => error?.message)
+        .filter(Boolean);
+
+      if (errorMessages.length > 0) {
+        toast.error("Please correct the errors in the form", {
+          description: errorMessages[0], // Show first error message
+        });
+      }
+    }
+  }, [form.formState.errors, form.formState.submitCount]);
+
+  /**
+   * Handle email/password login
+   *
+   * Better Auth signIn.email flow:
+   * 1. Validates credentials against database
+   * 2. Creates session if valid
+   * 3. Sets session cookie automatically
+   * 4. Returns session data or error
+   *
+   * Error handling strategy:
+   * - 401 errors: Show as field-level error on password field
+   * - Other errors: Show as toast notification
+   * - Unexpected errors: Caught by try/catch, show generic message
+   *
+   * Why fetchOptions?
+   * - Provides more granular control over success/error handling
+   * - Allows separation of UI feedback from business logic
+   * - Better TypeScript inference for error types
+   * - Recommended by Better Auth for production applications
+   */
   async function onSubmit(data: LoginInput) {
     startTransition(async () => {
       try {
@@ -91,38 +155,76 @@ export function LoginForm({
           email: data.email,
           password: data.password,
           callbackURL: callbackUrl,
+          fetchOptions: {
+            onSuccess: () => {
+              toast.success("Successfully signed in!");
+            },
+            onError: (ctx) => {
+              const error = ctx.error as BetterAuthError;
+              const errorMessage = getAuthErrorMessage(error);
+
+              // Show field-level error for invalid credentials
+              // This provides better UX by highlighting the exact field
+              if (error.status === 401) {
+                form.setError("password", {
+                  type: "manual",
+                  message: errorMessage,
+                });
+              } else {
+                // Show toast for system errors (verification, rate limit, etc.)
+                toast.error(errorMessage);
+              }
+            },
+          },
         });
 
+        // Additional error check for type safety
+        // fetchOptions.onError already handles the error, but this ensures TypeScript knows
         if (error) {
-          const errorMessage = getAuthErrorMessage(error);
-
-          if (error.status === 401) {
-            form.setError("password", {
-              type: "manual",
-              message: errorMessage,
-            });
-          } else {
-            toast.error(errorMessage);
-          }
           return;
         }
 
+        // Validate session exists (should always be true if no error)
         if (!session) {
           toast.error("Failed to sign in. Please try again.");
           return;
         }
 
-        toast.success("Successfully signed in!");
-
+        // Success - refresh server state and redirect
+        // router.refresh() is important to sync server-side session state
         router.refresh();
         router.push(callbackUrl);
       } catch (error) {
+        // Catch unexpected errors (network failures, etc.)
         console.error("[Login Error]", error);
         toast.error("An unexpected error occurred. Please try again.");
       }
     });
   }
 
+  /**
+   * Handle social OAuth sign-in (Google, Apple, etc.)
+   *
+   * IMPORTANT: OAuth behavior is different from email/password
+   *
+   * OAuth flow:
+   * 1. authClient.signIn.social() is called
+   * 2. Browser IMMEDIATELY redirects to provider (Google, Apple, etc.)
+   * 3. User authenticates on provider's website
+   * 4. Provider redirects back to your app with auth code
+   * 5. Better Auth exchanges code for tokens and creates session
+   *
+   * Error handling limitations:
+   * - Only pre-redirect errors can be caught here (invalid config, network issues)
+   * - Post-redirect errors (user denies permission, OAuth fails) are handled by
+   *   Better Auth's callback endpoint and shown on the callback page
+   * - The onSuccess callback will NOT fire because the redirect happens first
+   *
+   * Common pre-redirect errors:
+   * - Missing OAuth credentials in environment variables
+   * - Network failure before redirect
+   * - Invalid provider configuration
+   */
   async function handleSocialSignIn(provider: SocialProvider) {
     if (provider === "apple") {
       toast.info("Apple Sign In is coming soon");
@@ -131,23 +233,35 @@ export function LoginForm({
 
     startTransition(async () => {
       try {
-        const { error } = await authClient.signIn.social({
+        // Note: This call will redirect immediately on success
+        // Code after this won't execute unless there's a pre-redirect error
+        await authClient.signIn.social({
           provider,
           callbackURL: callbackUrl,
+          fetchOptions: {
+            // onSuccess won't be called - redirect happens before it can fire
+            onSuccess: () => {
+              // This is unreachable for OAuth - kept for API consistency
+            },
+            // Only catches pre-redirect errors
+            onError: (ctx) => {
+              const error = ctx.error as BetterAuthError;
+              toast.error(
+                error.message ??
+                  `Failed to initialize ${provider} sign-in. Please try again.`,
+              );
+            },
+          },
         });
-
-        if (error) {
-          toast.error(error.message ?? `Failed to sign in with ${provider}`);
-        }
       } catch (error) {
+        // Only catches errors before redirect (network issues, invalid config)
         console.error(`[${provider} Sign In Error]`, error);
-        toast.error("An unexpected error occurred. Please try again.");
+        toast.error(
+          "Failed to connect to sign-in provider. Please check your connection.",
+        );
       }
     });
   }
-
-  const hasErrors = Object.keys(form.formState.errors).length > 0;
-  const submitCount = form.formState.submitCount;
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -162,13 +276,6 @@ export function LoginForm({
             noValidate
             aria-label="Login form"
           >
-            {submitCount > 0 && hasErrors && (
-              <FormErrorSummary
-                errors={form.formState.errors}
-                title="Please correct the following errors:"
-              />
-            )}
-
             <FieldGroup>
               <Field>
                 <Button

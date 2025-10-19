@@ -1,4 +1,3 @@
-// src/app/(auth)/_components/forgot-password-form.tsx
 "use client";
 
 import * as React from "react";
@@ -26,8 +25,17 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
-import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import { Input } from "@/components/ui/input";
+
+/**
+ * Better Auth error type
+ * All Better Auth methods return errors with this structure
+ */
+type BetterAuthError = {
+  status?: number;
+  message?: string;
+  statusText?: string;
+};
 
 export function ForgotPasswordForm({
   className,
@@ -47,32 +55,91 @@ export function ForgotPasswordForm({
 
   const isSubmitting = form.formState.isSubmitting || isPending;
 
+  /**
+   * Show validation errors as toast notification
+   * Triggered after form submission when validation fails
+   */
+  React.useEffect(() => {
+    const errors = form.formState.errors;
+    const submitCount = form.formState.submitCount;
+
+    // Only show toast after user has attempted to submit
+    if (submitCount > 0 && Object.keys(errors).length > 0) {
+      const errorMessages = Object.values(errors)
+        .map((error) => error?.message)
+        .filter(Boolean);
+
+      if (errorMessages.length > 0) {
+        toast.error("Please correct the errors in the form", {
+          description: errorMessages[0], // Show first error message
+        });
+      }
+    }
+  }, [form.formState.errors, form.formState.submitCount]);
+
+  /**
+   * Handle forgot password request
+   *
+   * Better Auth forgetPassword flow:
+   * 1. Accepts email address
+   * 2. Checks if user exists in database
+   * 3. If exists: Generates reset token and sends email
+   * 4. If not exists: Still returns success (security measure)
+   * 5. Returns success regardless to prevent email enumeration
+   *
+   * Security consideration - Email enumeration prevention:
+   * We ALWAYS show success message, even if the email doesn't exist.
+   * This prevents attackers from using this form to discover valid email addresses.
+   *
+   * Better Auth handles this automatically - it returns success even for
+   * non-existent emails. We maintain this security pattern in our UI.
+   *
+   * Why fetchOptions?
+   * - Consistent error handling pattern
+   * - Allows graceful handling of unexpected errors
+   * - Maintains security by not revealing email existence
+   */
   async function onSubmit(data: ForgotPasswordInput) {
     startTransition(async () => {
       try {
-        const { error } = await authClient.forgetPassword({
+        await authClient.forgetPassword({
           email: data.email,
           redirectTo: "/reset-password",
+          fetchOptions: {
+            onSuccess: () => {
+              // Don't reveal if email exists - always show success
+              setEmailSent(true);
+              toast.success(
+                "If an account exists, you'll receive a reset link",
+              );
+            },
+            onError: (ctx) => {
+              const error = ctx.error as BetterAuthError;
+
+              // Log error for debugging but don't expose to user
+              console.error("[Forgot Password Error]", error);
+
+              // Still show success to prevent email enumeration
+              setEmailSent(true);
+              toast.success(
+                "If an account exists, you'll receive a reset link",
+              );
+            },
+          },
         });
-
-        if (error) {
-          // Don't reveal if email exists for security
-          // But still show user-friendly message
-          console.error("[Forgot Password Error]", error);
-        }
-
-        // Always show success to prevent email enumeration
-        setEmailSent(true);
-        toast.success("If an account exists, you'll receive a reset link");
       } catch (error) {
+        // Catch unexpected errors (network failures, etc.)
         console.error("[Forgot Password Error]", error);
+
         // Still show success message for security
+        // Users will know there's an issue if they don't receive the email
         setEmailSent(true);
         toast.success("If an account exists, you'll receive a reset link");
       }
     });
   }
 
+  // Success state - show confirmation and option to resend
   if (emailSent) {
     return (
       <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -101,9 +168,6 @@ export function ForgotPasswordForm({
     );
   }
 
-  const hasErrors = Object.keys(form.formState.errors).length > 0;
-  const submitCount = form.formState.submitCount;
-
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
@@ -119,13 +183,6 @@ export function ForgotPasswordForm({
             noValidate
             aria-label="Forgot password form"
           >
-            {submitCount > 0 && hasErrors && (
-              <FormErrorSummary
-                errors={form.formState.errors}
-                title="Please correct the following errors:"
-              />
-            )}
-
             <FieldGroup>
               <Controller
                 name="email"

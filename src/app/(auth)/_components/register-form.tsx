@@ -28,12 +28,41 @@ import {
   FieldLabel,
   FieldSeparator,
 } from "@/components/ui/field";
-import { FormErrorSummary } from "@/components/ui/form-error-summary";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { PasswordStrength } from "@/components/ui/password-strength";
 
 type SocialProvider = "google" | "apple";
+
+/**
+ * Better Auth error type
+ * All Better Auth methods return errors with this structure
+ */
+type BetterAuthError = {
+  status?: number;
+  message?: string;
+  statusText?: string;
+};
+
+/**
+ * Check if error indicates duplicate email
+ *
+ * Better Auth can return duplicate email errors in several ways:
+ * - Status code 409 (Conflict)
+ * - Error message containing "already exists"
+ * - Error message containing "duplicate"
+ *
+ * @param error - Better Auth error object
+ * @returns true if error is due to duplicate email
+ */
+function isDuplicateEmailError(error: BetterAuthError): boolean {
+  if (error.status === 409) {
+    return true;
+  }
+
+  const message = error.message?.toLowerCase() ?? "";
+  return message.includes("already exists") || message.includes("duplicate");
+}
 
 export function RegisterForm({
   className,
@@ -57,6 +86,10 @@ export function RegisterForm({
   const password = form.watch("password");
   const isSubmitting = form.formState.isSubmitting || isPending;
 
+  /**
+   * Focus management for accessibility
+   * Automatically scrolls to and focuses the first field with an error
+   */
   React.useEffect(() => {
     const errors = form.formState.errors;
     if (Object.keys(errors).length > 0) {
@@ -69,6 +102,50 @@ export function RegisterForm({
     }
   }, [form.formState.errors, form.formState.submitCount]);
 
+  /**
+   * Show validation errors as toast notification
+   * Triggered after form submission when validation fails
+   */
+  React.useEffect(() => {
+    const errors = form.formState.errors;
+    const submitCount = form.formState.submitCount;
+
+    // Only show toast after user has attempted to submit
+    if (submitCount > 0 && Object.keys(errors).length > 0) {
+      const errorMessages = Object.values(errors)
+        .map((error) => error?.message)
+        .filter(Boolean);
+
+      if (errorMessages.length > 0) {
+        toast.error("Please correct the errors in the form", {
+          description: errorMessages[0], // Show first error message
+        });
+      }
+    }
+  }, [form.formState.errors, form.formState.submitCount]);
+
+  /**
+   * Handle email/password registration
+   *
+   * Better Auth signUp.email flow:
+   * 1. Validates input (email format, password strength)
+   * 2. Checks if email already exists
+   * 3. Creates user record in database
+   * 4. Sends verification email (if email verification enabled)
+   * 5. Creates session (or requires verification first, depending on config)
+   * 6. Returns session data or error
+   *
+   * Error handling strategy:
+   * - Duplicate email (409): Show as field-level error on email field
+   * - Other errors: Show as toast notification
+   * - Success: Redirect to verification page
+   *
+   * Why fetchOptions?
+   * - Separates success/error UI feedback from business logic
+   * - Provides type-safe error handling
+   * - Allows consistent error handling patterns across the app
+   * - Recommended by Better Auth documentation
+   */
   async function onSubmit(data: RegisterInput) {
     startTransition(async () => {
       try {
@@ -76,41 +153,74 @@ export function RegisterForm({
           name: data.name,
           email: data.email,
           password: data.password,
+          fetchOptions: {
+            onSuccess: () => {
+              toast.success(
+                "Account created! Please check your email to verify.",
+              );
+            },
+            onError: (ctx) => {
+              const error = ctx.error as BetterAuthError;
+
+              // Handle duplicate email - show as field error for better UX
+              if (isDuplicateEmailError(error)) {
+                form.setError("email", {
+                  type: "manual",
+                  message: "An account with this email already exists",
+                });
+                toast.error("This email is already registered");
+              } else {
+                // Show generic error for other issues
+                toast.error(error.message ?? "Failed to create account");
+              }
+            },
+          },
         });
 
+        // Additional error check for type safety
+        // fetchOptions.onError already handles the error, but this ensures TypeScript knows
         if (error) {
-          if (
-            error.message?.toLowerCase().includes("already exists") ||
-            error.message?.toLowerCase().includes("duplicate")
-          ) {
-            form.setError("email", {
-              type: "manual",
-              message: "An account with this email already exists",
-            });
-            toast.error("This email is already registered");
-          } else {
-            toast.error(error.message ?? "Failed to create account");
-          }
           return;
         }
 
+        // Validate session exists (should always be true if no error)
         if (!session) {
           toast.error("Failed to create account. Please try again.");
           return;
         }
 
-        toast.success("Account created! Please check your email to verify.");
-
-        // Redirect to verification page
+        // Success - redirect to verification page
+        // router.refresh() syncs server-side state
         router.refresh();
         router.push("/verify-email");
       } catch (error) {
+        // Catch unexpected errors (network failures, etc.)
         console.error("[Register Error]", error);
         toast.error("An unexpected error occurred. Please try again.");
       }
     });
   }
 
+  /**
+   * Handle social OAuth sign-in (Google, Apple, etc.)
+   *
+   * IMPORTANT: OAuth behavior is different from email/password
+   *
+   * OAuth flow:
+   * 1. authClient.signIn.social() is called
+   * 2. Browser IMMEDIATELY redirects to provider (Google, Apple, etc.)
+   * 3. User authenticates on provider's website
+   * 4. Provider redirects back to your app with auth code
+   * 5. Better Auth exchanges code for tokens and creates/updates user
+   *
+   * Error handling limitations:
+   * - Only pre-redirect errors can be caught here (invalid config, network issues)
+   * - Post-redirect errors are handled by Better Auth's callback endpoint
+   * - The onSuccess callback will NOT fire because the redirect happens first
+   *
+   * Note: OAuth sign-in can be used for both new users (registration)
+   * and existing users (login). Better Auth handles this automatically.
+   */
   async function handleSocialSignIn(provider: SocialProvider) {
     if (provider === "apple") {
       toast.info("Apple Sign In is coming soon");
@@ -119,23 +229,35 @@ export function RegisterForm({
 
     startTransition(async () => {
       try {
-        const { error } = await authClient.signIn.social({
+        // Note: This call will redirect immediately on success
+        // Code after this won't execute unless there's a pre-redirect error
+        await authClient.signIn.social({
           provider,
           callbackURL: callbackUrl,
+          fetchOptions: {
+            // onSuccess won't be called - redirect happens before it can fire
+            onSuccess: () => {
+              // This is unreachable for OAuth - kept for API consistency
+            },
+            // Only catches pre-redirect errors
+            onError: (ctx) => {
+              const error = ctx.error as BetterAuthError;
+              toast.error(
+                error.message ??
+                  `Failed to initialize ${provider} sign-in. Please try again.`,
+              );
+            },
+          },
         });
-
-        if (error) {
-          toast.error(error.message ?? `Failed to sign in with ${provider}`);
-        }
       } catch (error) {
+        // Only catches errors before redirect (network issues, invalid config)
         console.error(`[${provider} Sign In Error]`, error);
-        toast.error("An unexpected error occurred. Please try again.");
+        toast.error(
+          "Failed to connect to sign-in provider. Please check your connection.",
+        );
       }
     });
   }
-
-  const hasErrors = Object.keys(form.formState.errors).length > 0;
-  const submitCount = form.formState.submitCount;
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -152,13 +274,6 @@ export function RegisterForm({
             noValidate
             aria-label="Registration form"
           >
-            {submitCount > 0 && hasErrors && (
-              <FormErrorSummary
-                errors={form.formState.errors}
-                title="Please correct the following errors:"
-              />
-            )}
-
             <FieldGroup>
               <Field>
                 <Button
