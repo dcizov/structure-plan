@@ -147,7 +147,7 @@ export function ResetPasswordForm({
    * - Expired token: Redirect to forgot-password page
    * - Invalid token: Redirect to forgot-password page
    * - Other errors: Show toast, let user retry
-   * - Success: Redirect to login page
+   * - Success: Redirect to sign-in page
    *
    * Why fetchOptions?
    * - Provides granular control over success/error handling
@@ -169,13 +169,13 @@ export function ResetPasswordForm({
             onSuccess: () => {
               setResetSuccess(true);
               toast.success(
-                "Password reset successful! Redirecting to login...",
+                "Password reset successful! Redirecting to sign-in...",
               );
 
-              // Redirect to login after brief delay for user to see success message
+              // Redirect to sign-in after brief delay for user to see success message
               setTimeout(() => {
                 router.refresh();
-                router.push("/login");
+                router.push("/signin");
               }, 2000);
             },
             onError: (ctx) => {
@@ -238,7 +238,7 @@ export function ResetPasswordForm({
 
   /**
    * Success state
-   * Show confirmation message while redirecting to login
+   * Show confirmation message while redirecting to sign-in
    */
   if (resetSuccess) {
     return (
@@ -247,7 +247,8 @@ export function ResetPasswordForm({
           <CardHeader>
             <CardTitle>Password reset successful</CardTitle>
             <CardDescription>
-              Your password has been reset successfully. Redirecting to login...
+              Your password has been reset successfully. Redirecting to
+              sign-in...
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -387,11 +388,11 @@ export function ResetPasswordForm({
                 </Button>
                 <FieldDescription className="text-center">
                   <Link
-                    href="/login"
+                    href="/signin"
                     className="underline underline-offset-4 hover:no-underline"
                     tabIndex={isSubmitting ? -1 : 0}
                   >
-                    Back to login
+                    Back to sign-in
                   </Link>
                 </FieldDescription>
               </Field>

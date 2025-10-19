@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSafeCallback } from "@/hooks/use-safe-callbacks";
-import { loginSchema, type LoginInput } from "@/schemas/auth";
+import { signInSchema, type SignInInput } from "@/schemas/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -60,7 +60,7 @@ function getAuthErrorMessage(error: BetterAuthError): string {
     401: "Invalid email or password",
     403: "Please verify your email before signing in",
     423: "Your account has been locked. Please contact support.",
-    429: "Too many login attempts. Please try again later.",
+    429: "Too many sign-in attempts. Please try again later.",
   };
 
   if (error.status && error.status in errorMessages) {
@@ -70,7 +70,7 @@ function getAuthErrorMessage(error: BetterAuthError): string {
   return error.message ?? "Authentication failed. Please try again.";
 }
 
-export function LoginForm({
+export function SignInForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
@@ -78,8 +78,8 @@ export function LoginForm({
   const callbackUrl = useSafeCallback();
   const [isPending, startTransition] = React.useTransition();
 
-  const form = useForm<LoginInput>({
-    resolver: zodResolver(loginSchema),
+  const form = useForm<SignInInput>({
+    resolver: zodResolver(signInSchema),
     defaultValues: {
       email: "",
       password: "",
@@ -97,7 +97,7 @@ export function LoginForm({
   React.useEffect(() => {
     const errors = form.formState.errors;
     if (Object.keys(errors).length > 0) {
-      const firstErrorField = Object.keys(errors)[0] as keyof LoginInput;
+      const firstErrorField = Object.keys(errors)[0] as keyof SignInInput;
       const element = document.getElementById(firstErrorField);
       if (element) {
         element.focus();
@@ -129,7 +129,7 @@ export function LoginForm({
   }, [form.formState.errors, form.formState.submitCount]);
 
   /**
-   * Handle email/password login
+   * Handle email/password sign-in
    *
    * Better Auth signIn.email flow:
    * 1. Validates credentials against database
@@ -148,7 +148,7 @@ export function LoginForm({
    * - Better TypeScript inference for error types
    * - Recommended by Better Auth for production applications
    */
-  async function onSubmit(data: LoginInput) {
+  async function onSubmit(data: SignInInput) {
     startTransition(async () => {
       try {
         const { data: session, error } = await authClient.signIn.email({
@@ -196,7 +196,7 @@ export function LoginForm({
         router.push(callbackUrl);
       } catch (error) {
         // Catch unexpected errors (network failures, etc.)
-        console.error("[Login Error]", error);
+        console.error("[Sign-In Error]", error);
         toast.error("An unexpected error occurred. Please try again.");
       }
     });
@@ -274,7 +274,7 @@ export function LoginForm({
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             noValidate
-            aria-label="Login form"
+            aria-label="Sign-In form"
           >
             <FieldGroup>
               <Field>
@@ -442,7 +442,7 @@ export function LoginForm({
                 <FieldDescription className="text-center">
                   Don&apos;t have an account?{" "}
                   <Link
-                    href="/register"
+                    href="/signup"
                     className="underline underline-offset-4 hover:no-underline"
                     tabIndex={isSubmitting ? -1 : 0}
                   >

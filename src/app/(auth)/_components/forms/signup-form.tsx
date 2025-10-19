@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSafeCallback } from "@/hooks/use-safe-callbacks";
-import { registerSchema, type RegisterInput } from "@/schemas/auth";
+import { signUpSchema, type SignUpInput } from "@/schemas/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -64,7 +64,7 @@ function isDuplicateEmailError(error: BetterAuthError): boolean {
   return message.includes("already exists") || message.includes("duplicate");
 }
 
-export function RegisterForm({
+export function SignUpForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
@@ -72,8 +72,8 @@ export function RegisterForm({
   const callbackUrl = useSafeCallback();
   const [isPending, startTransition] = React.useTransition();
 
-  const form = useForm<RegisterInput>({
-    resolver: zodResolver(registerSchema),
+  const form = useForm<SignUpInput>({
+    resolver: zodResolver(signUpSchema),
     defaultValues: {
       name: "",
       email: "",
@@ -93,7 +93,7 @@ export function RegisterForm({
   React.useEffect(() => {
     const errors = form.formState.errors;
     if (Object.keys(errors).length > 0) {
-      const firstErrorField = Object.keys(errors)[0] as keyof RegisterInput;
+      const firstErrorField = Object.keys(errors)[0] as keyof SignUpInput;
       const element = document.getElementById(firstErrorField);
       if (element) {
         element.focus();
@@ -146,7 +146,7 @@ export function RegisterForm({
    * - Allows consistent error handling patterns across the app
    * - Recommended by Better Auth documentation
    */
-  async function onSubmit(data: RegisterInput) {
+  async function onSubmit(data: SignUpInput) {
     startTransition(async () => {
       try {
         const { data: session, error } = await authClient.signUp.email({
@@ -168,7 +168,7 @@ export function RegisterForm({
                   type: "manual",
                   message: "An account with this email already exists",
                 });
-                toast.error("This email is already registered");
+                toast.error("This email already exists");
               } else {
                 // Show generic error for other issues
                 toast.error(error.message ?? "Failed to create account");
@@ -195,7 +195,7 @@ export function RegisterForm({
         router.push("/verify-email");
       } catch (error) {
         // Catch unexpected errors (network failures, etc.)
-        console.error("[Register Error]", error);
+        console.error("[Sign-Up Error]", error);
         toast.error("An unexpected error occurred. Please try again.");
       }
     });
@@ -219,7 +219,7 @@ export function RegisterForm({
    * - The onSuccess callback will NOT fire because the redirect happens first
    *
    * Note: OAuth sign-in can be used for both new users (registration)
-   * and existing users (login). Better Auth handles this automatically.
+   * and existing users (sign-in). Better Auth handles this automatically.
    */
   async function handleSocialSignIn(provider: SocialProvider) {
     if (provider === "apple") {
@@ -476,7 +476,7 @@ export function RegisterForm({
                 <FieldDescription className="text-center">
                   Already have an account?{" "}
                   <Link
-                    href="/login"
+                    href="/signin"
                     className="underline underline-offset-4 hover:no-underline"
                     tabIndex={isSubmitting ? -1 : 0}
                   >

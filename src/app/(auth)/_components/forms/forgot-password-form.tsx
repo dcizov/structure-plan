@@ -160,7 +160,7 @@ export function ForgotPasswordForm({
               Send another link
             </Button>
             <Button asChild variant="ghost" className="w-full">
-              <Link href="/login">Back to login</Link>
+              <Link href="/sgnin">Back to Sign-In</Link>
             </Button>
           </CardContent>
         </Card>
@@ -251,7 +251,7 @@ export function ForgotPasswordForm({
                 <FieldDescription className="text-center">
                   Remember your password?{" "}
                   <Link
-                    href="/login"
+                    href="/sgnin"
                     className="underline underline-offset-4 hover:no-underline"
                     tabIndex={isSubmitting ? -1 : 0}
                   >
