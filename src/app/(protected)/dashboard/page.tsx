@@ -11,6 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import {
   Card,
   CardContent,
@@ -18,7 +19,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 
 export default function DashboardPage() {
@@ -91,30 +104,39 @@ export default function DashboardPage() {
           <CardContent>
             <div className="space-y-6">
               {/* Profile Header */}
-              <div className="flex items-start gap-4">
-                <Avatar className="h-16 w-16">
-                  <AvatarImage src="https://github.com/shadcn.png" alt="User" />
-                  <AvatarFallback>JD</AvatarFallback>
-                </Avatar>
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-semibold">John Doe</h3>
-                    <Badge variant="secondary">Verified</Badge>
-                  </div>
-                  <div className="text-muted-foreground flex items-center gap-1 text-sm">
-                    <Mail className="h-3 w-3" />
+              <Item>
+                <ItemMedia>
+                  <Avatar className="h-16 w-16">
+                    <AvatarImage
+                      src="https://github.com/shadcn.png"
+                      alt="User"
+                    />
+                    <AvatarFallback>JD</AvatarFallback>
+                  </Avatar>
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle className="text-lg">
+                    John Doe
+                    <Badge variant="secondary" className="ml-2">
+                      Verified
+                    </Badge>
+                  </ItemTitle>
+                  <ItemDescription>
+                    <Mail className="mr-1 inline h-3 w-3" />
                     john.doe@example.com
-                  </div>
-                  <div className="text-muted-foreground flex items-center gap-1 text-sm">
-                    <Calendar className="h-3 w-3" />
+                  </ItemDescription>
+                  <ItemDescription>
+                    <Calendar className="mr-1 inline h-3 w-3" />
                     Joined March 2024
-                  </div>
-                </div>
-                <Button variant="outline" size="sm">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Edit Profile
-                </Button>
-              </div>
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Button variant="outline" size="sm">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Edit Profile
+                  </Button>
+                </ItemActions>
+              </Item>
 
               <Separator />
 
@@ -158,14 +180,15 @@ export default function DashboardPage() {
           <CardContent>
             <div className="space-y-4">
               {/* Search Input */}
-              <div className="relative">
-                <Search className="text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4" />
-                <Input
+              <InputGroup>
+                <InputGroupInput
                   type="search"
                   placeholder="Search by name..."
-                  className="pl-8"
                 />
-              </div>
+                <InputGroupAddon>
+                  <Search className="h-4 w-4" />
+                </InputGroupAddon>
+              </InputGroup>
 
               {/* Search Results */}
               <div className="space-y-3">
@@ -175,27 +198,24 @@ export default function DashboardPage() {
                   { name: "Carol White", role: "Manager", avatar: "CW" },
                   { name: "David Brown", role: "Analyst", avatar: "DB" },
                 ].map((user, i) => (
-                  <div
-                    key={i}
-                    className="hover:bg-accent flex items-center justify-between rounded-lg border p-3 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
+                  <Item key={i} variant="outline" size="sm">
+                    <ItemMedia>
                       <Avatar className="h-10 w-10">
                         <AvatarFallback className="text-xs">
                           {user.avatar}
                         </AvatarFallback>
                       </Avatar>
-                      <div>
-                        <p className="text-sm font-medium">{user.name}</p>
-                        <p className="text-muted-foreground text-xs">
-                          {user.role}
-                        </p>
-                      </div>
-                    </div>
-                    <Button variant="ghost" size="sm">
-                      View
-                    </Button>
-                  </div>
+                    </ItemMedia>
+                    <ItemContent>
+                      <ItemTitle>{user.name}</ItemTitle>
+                      <ItemDescription>{user.role}</ItemDescription>
+                    </ItemContent>
+                    <ItemActions>
+                      <Button variant="ghost" size="sm">
+                        View
+                      </Button>
+                    </ItemActions>
+                  </Item>
                 ))}
               </div>
 
@@ -236,28 +256,25 @@ export default function DashboardPage() {
                 { name: "Ivy Martinez", email: "ivy@example.com", image: null },
                 { name: "Jack Davis", email: "jack@example.com", image: null },
               ].map((user, i) => (
-                <div
-                  key={i}
-                  className="hover:bg-accent flex items-start gap-3 rounded-lg border p-4 transition-colors"
-                >
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={user.image ?? undefined} />
-                    <AvatarFallback>
-                      {user.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 space-y-1 overflow-hidden">
-                    <p className="text-sm leading-none font-medium">
-                      {user.name}
-                    </p>
-                    <p className="text-muted-foreground truncate text-xs">
+                <Item key={i} variant="outline">
+                  <ItemMedia>
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={user.image ?? undefined} />
+                      <AvatarFallback>
+                        {user.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")}
+                      </AvatarFallback>
+                    </Avatar>
+                  </ItemMedia>
+                  <ItemContent>
+                    <ItemTitle>{user.name}</ItemTitle>
+                    <ItemDescription className="truncate">
                       {user.email}
-                    </p>
-                  </div>
-                </div>
+                    </ItemDescription>
+                  </ItemContent>
+                </Item>
               ))}
             </div>
 
@@ -266,14 +283,14 @@ export default function DashboardPage() {
               <p className="text-muted-foreground text-sm">
                 Showing 1-6 of 2,350 users
               </p>
-              <div className="flex gap-2">
+              <ButtonGroup>
                 <Button variant="outline" size="sm" disabled>
                   Previous
                 </Button>
                 <Button variant="outline" size="sm">
                   Next
                 </Button>
-              </div>
+              </ButtonGroup>
             </div>
           </div>
         </CardContent>
@@ -287,19 +304,24 @@ export default function DashboardPage() {
             Irreversible account actions - proceed with caution
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="border-destructive/50 bg-destructive/5 flex items-start justify-between rounded-lg border p-4">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Delete Account</p>
-              <p className="text-muted-foreground text-xs">
+        <CardContent>
+          <Item
+            variant="muted"
+            className="border-destructive/50 bg-destructive/5"
+          >
+            <ItemContent>
+              <ItemTitle className="text-sm">Delete Account</ItemTitle>
+              <ItemDescription>
                 Permanently delete your account and all associated data. This
                 action cannot be undone.
-              </p>
-            </div>
-            <Button variant="destructive" size="sm">
-              Delete
-            </Button>
-          </div>
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Button variant="destructive" size="sm">
+                Delete
+              </Button>
+            </ItemActions>
+          </Item>
         </CardContent>
       </Card>
     </div>
