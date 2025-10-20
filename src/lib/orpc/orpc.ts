@@ -19,7 +19,7 @@ const link = new RPCLink({
     typeof window !== "undefined"
       ? window.location.origin
       : "http://localhost:3000"
-  }/rpc`,
+  }/api/rpc`,
   plugins: [
     new BatchLinkPlugin({
       groups: [
