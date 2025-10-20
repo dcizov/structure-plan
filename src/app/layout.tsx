@@ -5,7 +5,6 @@ import "@/styles/globals.css";
 import "@/lib/orpc/orpc.server";
 
 import { ORPCProvider } from "@/lib/orpc/provider";
-import { getQueryClient, HydrateClient } from "@/lib/orpc/query/hydration";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -24,13 +23,11 @@ export const metadata: Metadata = {
   description: "Your application description",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const queryClient = getQueryClient();
-
   return (
     <html
       lang="en"
@@ -44,9 +41,7 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <ORPCProvider>
-            <HydrateClient client={queryClient}>{children}</HydrateClient>
-          </ORPCProvider>
+          <ORPCProvider>{children}</ORPCProvider>
           <Toaster />
         </ThemeProvider>
       </body>
