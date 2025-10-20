@@ -4,14 +4,31 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+    develop:
+      watch:
+        - action: sync
+          path: ./
+          target: /usr/src/app
+          ignore:
+            - node_modules/
+            - .next/
+            - .git/
+            - .env
+            - Dockerfile*
+            - docker-compose*.yml
+        - action: rebuild
+          path: package.json
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
+      - /usr/src/app/.next
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=development
       - DATABASE_URL=${DATABASE_URL}
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
     depends_on:
       - postgres
     command: npm run dev
