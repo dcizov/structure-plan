@@ -1,8 +1,6 @@
 /**
  * Application routes
- * Centralized route definitions for type safety and maintainability
  */
-
 export const ROUTES = {
   HOME: "/",
   SIGNIN: "/signin",
@@ -11,12 +9,12 @@ export const ROUTES = {
   FORGOT_PASSWORD: "/forgot-password",
   RESET_PASSWORD: "/reset-password",
 
-  // Protected routes (require authentication)
+  // Protected routes
   DASHBOARD: "/dashboard",
   DASHBOARD_SETTINGS: "/dashboard/settings",
   DASHBOARD_PROFILE: "/dashboard/profile",
 
-  // Admin routes (require authentication + admin role)
+  // Admin routes
   ADMIN: "/dashboard/admin",
   ADMIN_USERS: "/dashboard/admin/users",
   ADMIN_SETTINGS: "/dashboard/admin/settings",
@@ -24,7 +22,6 @@ export const ROUTES = {
 
 /**
  * Routes only accessible to unauthenticated users
- * Used by middleware for route protection
  */
 export const GUEST_ONLY_ROUTES = [
   ROUTES.SIGNIN,
@@ -35,23 +32,16 @@ export const GUEST_ONLY_ROUTES = [
 ] as const;
 
 /**
- * Routes requiring authentication (but not admin)
- * Used by middleware for auth protection
+ * Routes requiring authentication
  */
 export const PROTECTED_ROUTES = [ROUTES.DASHBOARD] as const;
 
 /**
- * Admin-only routes (require authentication + admin role)
- * Used by middleware for role-based access control
+ * Admin-only routes
  */
 export const ADMIN_ROUTES = [ROUTES.ADMIN] as const;
 
 /**
- * Public routes that skip auth checks (performance optimization)
- * Uncomment and add routes when needed
+ * Public routes that skip auth checks
  */
-export const NO_AUTH_ROUTES: string[] = [
-  // "/about",
-  // "/pricing",
-  // "/blog",
-];
+export const NO_AUTH_ROUTES = [ROUTES.HOME] as const;
