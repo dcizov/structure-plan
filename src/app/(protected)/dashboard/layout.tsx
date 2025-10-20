@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserNav } from "@/components/user-nav";
-import { AppSidebar } from "@/app/(protected)/dashboard/_components/app-sidebar";
+import { AppSidebar } from "@/app/(protected)/dashboard/_components/sidebar/app-sidebar";
 
 export default function DashboardLayout({
   children,
