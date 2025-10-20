@@ -1,4 +1,3 @@
-// app/(protected)/dashboard/_components/sidebar/app-sidebar.tsx
 "use client";
 
 import * as React from "react";

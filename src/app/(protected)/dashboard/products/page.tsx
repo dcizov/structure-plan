@@ -1,4 +1,3 @@
-// app/(protected)/dashboard/products/page.tsx
 "use client";
 
 import { Package, Plus, Search } from "lucide-react";

@@ -1,4 +1,3 @@
-// app/(protected)/dashboard/_components/sidebar/search-command.tsx
 "use client";
 
 import * as React from "react";

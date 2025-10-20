@@ -1,4 +1,3 @@
-// app/(protected)/dashboard/orders/page.tsx
 "use client";
 
 import { Plus, ShoppingCart } from "lucide-react";

@@ -1,4 +1,3 @@
-// app/(protected)/dashboard/analytics/page.tsx
 "use client";
 
 import { BarChart3 } from "lucide-react";
