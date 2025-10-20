@@ -1,0 +1,13 @@
+services:
+  web:
+    container_name: structure-plan-prod
+    build:
+      target: production
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+    volumes: []
+    command: npm start
+
+  postgres:
+    container_name: structure-plan-prod-db
