@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LayoutDashboard, LogOut, Settings, User } from "lucide-react";
+import {
+  BadgeCheck,
+  Bell,
+  LayoutDashboard,
+  LogOut,
+  Palette,
+  Shield,
+  User,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { authClient, useSession } from "@/lib/auth/client";
@@ -132,8 +140,11 @@ export function UserNav() {
             <LayoutDashboard className="mr-2 h-4 w-4" />
             <span>Dashboard</span>
           </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
           <DropdownMenuItem
-            onClick={() => router.push("/profile")}
+            onClick={() => router.push("/dashboard/settings/profile")}
             className="cursor-pointer"
             disabled={isLoggingOut}
           >
@@ -141,12 +152,36 @@ export function UserNav() {
             <span>Profile</span>
           </DropdownMenuItem>
           <DropdownMenuItem
-            onClick={() => router.push("/settings")}
+            onClick={() => router.push("/dashboard/settings/account")}
             className="cursor-pointer"
             disabled={isLoggingOut}
           >
-            <Settings className="mr-2 h-4 w-4" />
-            <span>Settings</span>
+            <BadgeCheck className="mr-2 h-4 w-4" />
+            <span>Account</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => router.push("/dashboard/settings/appearance")}
+            className="cursor-pointer"
+            disabled={isLoggingOut}
+          >
+            <Palette className="mr-2 h-4 w-4" />
+            <span>Appearance</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => router.push("/dashboard/settings/notifications")}
+            className="cursor-pointer"
+            disabled={isLoggingOut}
+          >
+            <Bell className="mr-2 h-4 w-4" />
+            <span>Notifications</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => router.push("/dashboard/settings/advanced")}
+            className="cursor-pointer"
+            disabled={isLoggingOut}
+          >
+            <Shield className="mr-2 h-4 w-4" />
+            <span>Advanced</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
