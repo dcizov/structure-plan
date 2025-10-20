@@ -14,6 +14,10 @@ FROM base AS builder
 COPY --from=deps /usr/src/app/node_modules ./node_modules
 COPY . .
 
+# Ensure .next directory exist with proper permissions
+RUN mkdir -p .next && \
+    chown -R node:node /usr/src/app
+
 # Disable telemetry during build
 ENV NEXT_TELEMETRY_DISABLED=1
 

@@ -5,22 +5,11 @@ services:
       target: development
     develop:
       watch:
-        - action: sync
-          path: ./
-          target: /usr/src/app
-          ignore:
-            - node_modules/
-            - .next/
-            - .git/
-            - .env
-            - Dockerfile*
-            - docker-compose*.yml
         - action: rebuild
           path: package.json
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
-      - /usr/src/app/.next
     ports:
       - "3000:3000"
     environment:
