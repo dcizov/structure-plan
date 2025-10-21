@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  GalleryVerticalEnd,
   Home,
   Package,
   Settings,
@@ -16,45 +17,44 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { NavMain } from "@/app/(protected)/dashboard/_components/sidebar/nav-main";
+import { SearchCommand } from "@/app/(protected)/dashboard/_components/sidebar/search-command";
 
-import { SearchCommand } from "./search-command";
-
-const navItems = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: Home,
-  },
-  {
-    title: "Products",
-    url: "/dashboard/products",
-    icon: Package,
-  },
-  {
-    title: "Orders",
-    url: "/dashboard/orders",
-    icon: ShoppingCart,
-  },
-  {
-    title: "Customers",
-    url: "/dashboard/customers",
-    icon: Users,
-  },
-  {
-    title: "Analytics",
-    url: "/dashboard/analytics",
-    icon: BarChart3,
-  },
-];
+const data = {
+  navMain: [
+    {
+      title: "Dashboard",
+      url: "/dashboard",
+      icon: Home,
+    },
+    {
+      title: "Products",
+      url: "/dashboard/products",
+      icon: Package,
+    },
+    {
+      title: "Orders",
+      url: "/dashboard/orders",
+      icon: ShoppingCart,
+    },
+    {
+      title: "Customers",
+      url: "/dashboard/customers",
+      icon: Users,
+    },
+    {
+      title: "Analytics",
+      url: "/dashboard/analytics",
+      icon: BarChart3,
+    },
+  ],
+};
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
@@ -66,11 +66,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/dashboard">
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <Home className="size-4" />
+                <div className="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                  <GalleryVerticalEnd className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">Acme Inc</span>
+                  <span className="truncate font-semibold">Acme Inc.</span>
                   <span className="truncate text-xs">Dashboard</span>
                 </div>
               </Link>
@@ -81,33 +81,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SearchCommand />
         </div>
       </SidebarHeader>
-
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => {
-                const isActive =
-                  pathname === item.url ||
-                  (item.url !== "/dashboard" && pathname.startsWith(item.url));
-
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={isActive}>
-                      <Link href={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <NavMain items={data.navMain} />
       </SidebarContent>
-
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -123,7 +99,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
-
       <SidebarRail />
     </Sidebar>
   );

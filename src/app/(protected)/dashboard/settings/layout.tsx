@@ -1,6 +1,5 @@
 import { Separator } from "@/components/ui/separator";
-
-import { SettingsNav } from "../_components/sidebar/settings-nav";
+import { SettingsNav } from "@/app/(protected)/dashboard/_components/sidebar/nav-settings";
 
 export default function SettingsLayout({
   children,
